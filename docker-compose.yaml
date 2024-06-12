@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  ml-dev:
+  ml-tts-exp-dev:
     build:
       context: .
       args:
@@ -9,15 +9,15 @@ services:
       - gid=1001
       - username=mluser
       - project_name=mlexpenv
-    container_name: ml-dev
-    image: ml-dev-image
+    container_name: ml-tts-exp-dev
+    image: ml-tts-exp-dev-image
     shm_size: '24gb'
     tty: true
     volumes: 
       - $PWD:/home/mluser/mlexpenv
     command: '/bin/bash'
     ports:
-      - 18081-18090:18081-18090
+      - 17781-17790:17781-17790
     #runtime: nvidia
     deploy:
       resources:

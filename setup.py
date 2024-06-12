@@ -1,9 +1,9 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="ml env",
+    name="tts_exp_v1",
     version="0.0.1",
-    description="ml env",
+    description="tts experiments toolkit",
     author="Kai Washizaki",
     author_email="bandad.kw@gmail.com",
     long_description_content_type="text/markdown",
