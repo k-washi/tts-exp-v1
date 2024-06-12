@@ -6,7 +6,6 @@ POSE = "_"
 ACCENT_BOUNDARY = "#"
 ACCENT_UP = "["
 ACCENT_DOWN = "]"
-ADD_BLANK = "<B>"
 
 extra_symbols = [
     SOS,  # 文の先頭を表す特殊記号 <SOS>
@@ -16,9 +15,9 @@ extra_symbols = [
     ACCENT_BOUNDARY,  # アクセント句境界
     ACCENT_UP,  # ピッチの上がり位置
     ACCENT_DOWN,  # ピッチの下がり位置
-    ADD_BLANK,  # ブランク
 ]
 
+MORA_END_LIST = ["a", "i", "u", "e", "o", "cl", "N"]
 
 phonomes = [
     'a',

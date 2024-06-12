@@ -17,7 +17,7 @@ class MLConfig:
     num_epochs: int = 100
     check_val_every_n_epoch: int = 5
     max_steps: int = 500000
-    mix_precision: int = 32
+    mix_precision: str = 32 # 16 or 32, bf16
     gpu_devices: int = 1
     profiler: str = "simple"
     checkpoint: SaveConfig = field(default_factory=lambda: SaveConfig())

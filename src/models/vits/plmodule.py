@@ -1,0 +1,382 @@
+import torch
+from torch.cuda.amp import autocast
+import torch.nn.functional as F
+from pytorch_lightning import LightningModule
+from pathlib import Path
+from src.tts.utils.audio import (
+    slice_segments,
+    spec_to_mel_torch,
+    mel_spectrogram_torch
+)
+from src.config.config import Config
+
+from src.models.vits.generator import Generator
+from src.models.core.discriminator.hifigan import HiFiGANMultiScaleMultiPeriodDiscriminator
+
+from src.models.vits.loss import (
+    GeneratorAdversarialLoss,
+    DiscriminatorAdversarialLoss,
+    FeatureMatchLoss,
+    SISNRLoss,
+    kl_divergence_loss
+)
+
+from src.tts.utils.audio import save_wave
+from src.utils.ml import get_dtype
+
+class ViTSModule(LightningModule):
+    def __init__(
+        self, 
+        cfg: Config
+    ):
+        super(ViTSModule, self).__init__()
+        self.cfg = cfg
+        self.automatic_optimization = False
+        # models
+        self.net_g = Generator(cfg.model.net_g, cfg.data)
+        self.net_d = HiFiGANMultiScaleMultiPeriodDiscriminator()
+        
+        #loss
+        loss_cfg = cfg.model.loss
+        self.g_adv_loss = GeneratorAdversarialLoss(
+            average_by_discriminators=loss_cfg.g_adv_loss.average_by_discriminators,
+            loss_type=loss_cfg.g_adv_loss.loss_type
+        )
+        self.d_adv_loss = DiscriminatorAdversarialLoss(
+            average_by_discriminators=loss_cfg.d_adv_loss.average_by_discriminators,
+            loss_type=loss_cfg.d_adv_loss.loss_type
+        )
+        self.feat_match_loss = FeatureMatchLoss(
+            average_by_discriminators=loss_cfg.feat_match_loss.average_by_discriminators,
+            average_by_layers=loss_cfg.feat_match_loss.average_by_layers,
+            include_final_outputs=loss_cfg.feat_match_loss.include_final_outputs
+        )
+        
+        if loss_cfg.sisnr_loss_use:
+            self.si_snr_loss = SISNRLoss()
+        
+        #self._is_fp16 = cfg.ml.mix_precision == 16
+        #self._scaler = GradScaler(enabled=self._is_fp16)
+        self._dtype = get_dtype(cfg.ml.mix_precision)
+    
+    def generator_process(self, batch, batch_idx, step="train"):
+        optimizer_g, optimizer_d = self.optimizers()
+        (
+            wav_padded,
+            _,
+            spec_padded,
+            spec_lengths,
+            text_padded,
+            text_lengths,
+            accent_pos_padded,
+            speaker_id,
+        ) = batch
+        
+        with autocast(dtype=self._dtype):
+            # Generator
+            if step == "train":
+                self.toggle_optimizer(optimizer_g)
+            (
+                wav_fake,
+                stochastic_duration_predictor_loss,
+                id_slice,
+                _,
+                z_mask,
+                (z, z_p, m_p, logs_p, m_q, logs_q),
+            ) = self.net_g(
+                text_padded,
+                text_lengths,
+                accent_pos_padded,
+                spec_padded,
+                spec_lengths,
+                speaker_id=speaker_id
+            )
+            
+            wav_real = slice_segments(
+                    wav_padded,
+                    id_slice * self.cfg.dataset.hop_length,
+                    self.cfg.dataset.segment_size,
+                ) # id_slice * hop_lengthの位置からsegment_size分切り取る
+            # Generatorノ更新
+            p_real = self.net_d(wav_real)
+            p_fake = self.net_d(wav_fake)
+            
+            # 生成したwaveとOriginal spectrogramをMel Spectrogramに変換
+            filter_length = self.cfg.dataset.filter_length
+            sample_rate = self.cfg.dataset.sample_rate
+            mel_bins = self.cfg.dataset.mel_bins
+            segment_size = self.cfg.dataset.segment_size
+            hop_length = self.cfg.dataset.hop_length
+            win_length = self.cfg.dataset.win_length
+            f_min = self.cfg.dataset.f_min
+            f_max = self.cfg.dataset.f_max
+            
+            mel_spec_real = spec_to_mel_torch(
+                spec_padded, filter_length, mel_bins, sample_rate, f_min, f_max
+            )
+            mel_spec_real = slice_segments(
+                x=mel_spec_real,
+                ids_str=id_slice,
+                segment_size=segment_size // hop_length,
+            )
+            
+            mel_spec_fake = mel_spectrogram_torch(
+                    wav_fake,
+                    filter_length,
+                    mel_bins,
+                    sample_rate,
+                    hop_length,
+                    win_length,
+                    fmin=f_min,
+                    fmax=f_max
+                )
+            # lossを計算
+            
+        mel_reconstruction_loss = (
+            F.l1_loss(mel_spec_real, mel_spec_fake) * self.cfg.model.loss.mel_loss_lambda
+        )
+        duration_loss = (
+            torch.sum(stochastic_duration_predictor_loss.float())
+            * self.cfg.model.loss.duration_loss_lambda
+            if stochastic_duration_predictor_loss is not None
+            else 0.0
+        )
+        kl_loss = (
+            kl_divergence_loss(z_p, logs_q, m_p, logs_p, z_mask)
+            * self.cfg.model.loss.kl_loss_lambda
+        )
+        feature_matching_loss = (
+            self.feat_match_loss(p_fake, p_real)
+            * self.cfg.model.loss.feature_loss_loss_lambda
+        )
+        adversarial_loss_G = (
+            self.g_adv_loss(p_fake)
+            * self.cfg.model.loss.adversarial_loss_G_lambda
+        )
+        si_snr_loss = 0
+        if self.cfg.model.loss.sisnr_loss_use:
+            si_snr_loss = (
+                self.si_snr_loss(wav_fake, wav_real)
+                * self.cfg.model.loss.sisnr_loss_lambda
+            )
+            self.log(
+                f"{step}/sisnr_loss",
+                si_snr_loss,
+                on_step=True,
+                prog_bar=True,
+                logger=True,
+            )
+            
+        train_loss = (
+                kl_loss
+                + mel_reconstruction_loss
+                + duration_loss
+                + feature_matching_loss
+                + adversarial_loss_G
+                + si_snr_loss
+        )
+        # log the loss
+        self.log(
+            f"{step}/kl_loss", kl_loss, on_step=True, prog_bar=True, logger=True
+        )
+        self.log(
+            f"{step}/mel_reconstruction_loss",
+            mel_reconstruction_loss,
+            on_step=True,
+            prog_bar=True,
+            logger=True,
+        )
+        self.log(
+            f"{step}/duration_loss",
+            duration_loss,
+            on_step=True,
+            prog_bar=True,
+            logger=True,
+        )
+        self.log(
+            f"{step}/feature_matching_loss",
+            feature_matching_loss,
+            on_step=True,
+            prog_bar=True,
+            logger=True,
+        )
+        self.log(
+            f"{step}/adversarial_loss_G",
+            adversarial_loss_G,
+            on_step=True,
+            prog_bar=True,
+            logger=True,
+        )
+        self.log(
+            f"{step}/total_loss",
+            train_loss,
+            on_step=True,
+            prog_bar=True,
+            logger=True,
+        )
+        if step == "train":
+            self.manual_backward(train_loss)
+            if (batch_idx + 1) % self.cfg.ml.accumulate_grad_batches == 0:
+                self.clip_gradients(optimizer_g, gradient_clip_val=self.cfg.ml.grad_clip_val, gradient_clip_algorithm="norm")
+                optimizer_g.step()
+                optimizer_g.zero_grad()
+            self.untoggle_optimizer(optimizer_g)
+        
+        # Discriminatorの更新 (n_Dに一回更新)
+        if (batch_idx + 1) % self.cfg.model.net_d.n_D_update_steps == 0:
+            if step == "train":
+                self.toggle_optimizer(optimizer_d)
+            # Generator, Discriminatorが更新されたので、再度生成
+            with autocast(dtype=self._dtype):
+                (
+                    wav_fake,
+                    _,
+                    id_slice,
+                    _,
+                    _,
+                    _,
+                ) = self.net_g(
+                    text_padded,
+                    text_lengths,
+                    accent_pos_padded,
+                    spec_padded,
+                    spec_lengths,
+                    speaker_id=speaker_id
+                )
+
+                wav_real = slice_segments(
+                    wav_padded,
+                    id_slice * self.cfg.dataset.hop_length,
+                    self.cfg.dataset.segment_size,
+                ) # id_slice * hop_lengthの位置からsegment_size分切り取る
+
+                # discriminator
+                p_real = self.net_d(wav_real)
+                p_fake = self.net_d(wav_fake.detach())
+
+            # lossを計算
+            adversarial_loss_D = (
+                self.d_adv_loss(p_fake, p_real)
+                * self.cfg.model.loss.adversarial_loss_D_lambda
+            )  # adversarial loss
+            
+            # log the loss
+            self.log(
+                f"{step}/adversarial_loss_D",
+                adversarial_loss_D,
+                on_step=True,
+                prog_bar=True,
+                logger=True,
+            )
+            if step == "train":
+                #self._scaler(adversarial_loss_D).backward()
+                #self._scaler.unscale_(optimizer_d)
+                self.manual_backward(adversarial_loss_D)
+                if (batch_idx + 1) % int(self.cfg.ml.accumulate_grad_batches * self.cfg.model.net_d.n_D_update_steps) == 0:
+                    self.clip_gradients(optimizer_d, gradient_clip_val=self.cfg.ml.grad_clip_val, gradient_clip_algorithm="norm")
+                    optimizer_d.step()
+                    optimizer_d.zero_grad()
+                self.untoggle_optimizer(optimizer_d)
+            
+    def training_step(self, batch, batch_idx, ):        
+        self.generator_process(batch, batch_idx, step="train")
+        if self.cfg.model.scheduler_g.use and self.cfg.model.scheduler_d.use:
+            sh_g, sh_d = self.lr_schedulers()
+            sh_g.step()
+            sh_d.step()
+        
+    def validation_step(self, batch, batch_idx):
+        # Loss計算・Log作成
+        self.generator_process(batch, batch_idx, step="val")
+
+        # Batchの一部でSample VCを行う
+        val_output_dir = Path(self.cfg.path.val_out_dir)
+
+        (
+            _,
+            _,
+            _,
+            _,
+            text_padded,
+            text_lengths,
+            accent_pos_padded,
+            speaker_id,
+        ) = batch
+
+        _text_len = text_lengths[0]
+        with autocast(dtype=self._dtype):
+            fake_wave = self.net_g.text_to_speech(
+                text_padded[:1, :_text_len],
+                text_lengths[:1],
+                accent_pos_padded[:1, :_text_len],
+                speaker_id[:1]
+            )[0] # (1, 1, len) => (1, len)
+        fake_wave = fake_wave.detach().cpu()
+        val_output_dir = Path(self.cfg.path.val_out_dir) / f"{self.current_epoch:05d}"
+        val_output_dir.mkdir(parents=True, exist_ok=True)
+        
+        output_path = val_output_dir / f"{batch_idx:05d}.wav"
+        
+        save_wave(
+            fake_wave,
+            str(output_path),
+            sample_rate=self.cfg.dataset.sample_rate,
+        )
+        return None
+    
+    def on_validation_epoch_start(self) -> None:
+        return super().on_validation_epoch_start()
+    def on_validation_epoch_end(self) -> None:
+        return super().on_validation_epoch_end()
+
+    def configure_optimizers(self):
+        optg_cfg = self.cfg.model.optim_g
+        optd_cfg = self.cfg.model.optim_d
+        shg_cfg = self.cfg.model.scheduler_g
+        shd_cfg = self.cfg.model.scheduler_d
+        
+        if optg_cfg.name == "AdamW":
+            optimizer_g = torch.optim.AdamW(
+                self.net_g.parameters(),
+                lr=optg_cfg.lr,
+                eps=optg_cfg.eps,
+                betas=optg_cfg.betas,
+            )
+        else:
+            raise ValueError(f"Optimizer {optg_cfg.name} is not supported.")
+
+        if optd_cfg.name == "AdamW":
+            optimizer_d = torch.optim.AdamW(
+                self.net_d.parameters(),
+                lr=optd_cfg.lr,
+                eps=optd_cfg.eps,
+                betas=optd_cfg.betas,
+            )
+        else:
+            raise ValueError(f"Optimizer {optd_cfg.name} is not supported.")
+        
+        if self.cfg.model.scheduler_g.use and self.cfg.model.scheduler_d.use:
+            if shg_cfg.name == "ExponentialLR":
+                scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+                    optimizer=optimizer_g, gamma=shg_cfg.gamma
+                )
+            else:
+                raise ValueError(f"Scheduler {shg_cfg.name} is not supported.")
+            
+            if shd_cfg.name == "ExponentialLR":
+                scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+                    optimizer=optimizer_d, gamma=shd_cfg.gamma
+                )
+            else:
+                raise ValueError(f"Scheduler {shd_cfg.name} is not supported.")
+            
+            scheduler_g = {
+                "scheduler": scheduler_g,
+                "interval": shg_cfg.interval,
+            }
+            scheduler_d = {
+                "scheduler": scheduler_d,
+                "interval": shd_cfg.interval,
+            }
+            return [optimizer_g, optimizer_d], [scheduler_g, scheduler_d]
+        return [optimizer_g, optimizer_d], []

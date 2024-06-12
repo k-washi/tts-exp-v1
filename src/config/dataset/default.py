@@ -12,6 +12,7 @@ class DatasetConfig:
     segment_size: int = 16384
     f_max: int = 11025
     f_min: int = 0
-    # 各音素の間に<BLK>を追加。blank_itemが「0」の場合、<PAD>を追加
-    blank_version: int = 0
+    add_blank_type: int = 0 # 0: なし, 1: 音素の前後に挿入, 2: モーラの前後に挿入
+    accent_split: bool = False # アクセントを分割するか
+    accent_up_ignore = False # アクセント上昇を無視するか
     use_distirubute_sampler: bool = True
