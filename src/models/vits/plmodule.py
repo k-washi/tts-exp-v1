@@ -3,6 +3,8 @@ from torch.cuda.amp import autocast
 import torch.nn.functional as F
 from pytorch_lightning import LightningModule
 from pathlib import Path
+from transformers import get_linear_schedule_with_warmup
+import math
 from src.tts.utils.audio import (
     slice_segments,
     spec_to_mel_torch,
@@ -27,7 +29,7 @@ from src.utils.ml import get_dtype
 class ViTSModule(LightningModule):
     def __init__(
         self, 
-        cfg: Config
+        cfg: Config,
     ):
         super(ViTSModule, self).__init__()
         self.cfg = cfg
@@ -355,10 +357,17 @@ class ViTSModule(LightningModule):
         else:
             raise ValueError(f"Optimizer {optd_cfg.name} is not supported.")
         
+        training_step = math.ceil(self.cfg.dataset.train_dataset_num / self.cfg.ml.batch_size / self.cfg.ml.accumulate_grad_batches) * self.cfg.ml.num_epochs
         if self.cfg.model.scheduler_g.use and self.cfg.model.scheduler_d.use:
             if shg_cfg.name == "ExponentialLR":
                 scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
                     optimizer=optimizer_g, gamma=shg_cfg.gamma
+                )
+            elif shg_cfg.name == "linear_w_warmup":
+                scheduler_g = get_linear_schedule_with_warmup(
+                    optimizer=optimizer_g,
+                    num_warmup_steps=int(training_step * shg_cfg.warmup_rate),
+                    num_training_steps=training_step,
                 )
             else:
                 raise ValueError(f"Scheduler {shg_cfg.name} is not supported.")
@@ -366,6 +375,12 @@ class ViTSModule(LightningModule):
             if shd_cfg.name == "ExponentialLR":
                 scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
                     optimizer=optimizer_d, gamma=shd_cfg.gamma
+                )
+            elif shd_cfg.name == "linear_w_warmup":
+                scheduler_d = get_linear_schedule_with_warmup(
+                    optimizer=optimizer_d,
+                    num_warmup_steps=int(training_step * shd_cfg.warmup_rate),
+                    num_training_steps=training_step,
                 )
             else:
                 raise ValueError(f"Scheduler {shd_cfg.name} is not supported.")

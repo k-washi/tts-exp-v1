@@ -38,16 +38,19 @@ class OptimizerD():
 @dataclass
 class SchedulerG():
     use: bool = True
-    name: str = "ExponentialLR"
+    name: str = "linear_w_warmup"
     gamma: float = 0.999995
     interval: str = "step"
+    warmup_rate: float = 0.1
+    
 
 @dataclass
 class SchedulerD():
     use: bool = True
-    name: str = "ExponentialLR"
+    name: str = "linear_w_warmup"
     gamma: float = 0.999995
     interval: str = "step"
+    warmup_rate: float = 0.1
 
 @dataclass
 class GAdvLossConfig():

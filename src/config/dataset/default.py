@@ -16,3 +16,4 @@ class DatasetConfig:
     accent_split: bool = False # アクセントを分割するか
     accent_up_ignore = False # アクセント上昇を無視するか
     use_distirubute_sampler: bool = True
+    train_dataset_num: int = 4500
