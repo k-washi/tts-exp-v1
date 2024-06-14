@@ -5,7 +5,11 @@ class SaveConfig:
     top_k: int = -1
     monitor: str = 'val/total_loss'
     mode: str = "min"
-    
+
+@dataclass()
+class EvalatorConfig:
+    sr: int = 16000
+    speech_bert_score_model: str = "japanese-hubert-base"
 
 @dataclass()
 class MLConfig:
@@ -21,3 +25,5 @@ class MLConfig:
     gpu_devices: int = 1
     profiler: str = "simple"
     checkpoint: SaveConfig = field(default_factory=lambda: SaveConfig())
+    evaluator: EvalatorConfig = field(default_factory=lambda: EvalatorConfig())
+    wav_save_every_n: int = 10

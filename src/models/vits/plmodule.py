@@ -1,6 +1,7 @@
 import torch
 from torch.cuda.amp import autocast
 import torch.nn.functional as F
+import torchaudio
 from pytorch_lightning import LightningModule
 from pathlib import Path
 from transformers import get_linear_schedule_with_warmup
@@ -22,6 +23,8 @@ from src.models.vits.loss import (
     SISNRLoss,
     kl_divergence_loss
 )
+
+from src.models.core.evaluator.manager import TTSEvaluateManager
 
 from src.tts.utils.audio import save_wave
 from src.utils.ml import get_dtype
@@ -60,6 +63,14 @@ class ViTSModule(LightningModule):
         #self._is_fp16 = cfg.ml.mix_precision == 16
         #self._scaler = GradScaler(enabled=self._is_fp16)
         self._dtype = get_dtype(cfg.ml.mix_precision)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.evaluator = TTSEvaluateManager(
+            sr=cfg.ml.evaluator.sr,
+            speech_bert_score_model=cfg.ml.evaluator.speech_bert_score_model,
+            device=self.device
+        )
+        self.val_output_dir = None
+        self.val_resampler = torchaudio.transforms.Resample(cfg.dataset.sample_rate, cfg.ml.evaluator.sr)
     
     def generator_process(self, batch, batch_idx, step="train"):
         optimizer_g, optimizer_d = self.optimizers()
@@ -292,10 +303,8 @@ class ViTSModule(LightningModule):
         self.generator_process(batch, batch_idx, step="val")
 
         # Batchの一部でSample VCを行う
-        val_output_dir = Path(self.cfg.path.val_out_dir)
-
         (
-            _,
+            real_wave,
             _,
             _,
             _,
@@ -313,23 +322,46 @@ class ViTSModule(LightningModule):
                 accent_pos_padded[:1, :_text_len],
                 speaker_id[:1]
             )[0] # (1, 1, len) => (1, len)
+        
+        # 評価
+        real_wave = real_wave[0] # 1バッチ目のみ
+        self.evaluator.evaluate(self.val_resampler(real_wave), self.val_resampler(fake_wave))
+        
+        # 結果を保存
         fake_wave = fake_wave.detach().cpu()
-        val_output_dir = Path(self.cfg.path.val_out_dir) / f"{self.current_epoch:05d}"
-        val_output_dir.mkdir(parents=True, exist_ok=True)
+        self.val_output_dir = Path(self.cfg.path.val_out_dir) / f"{self.current_epoch:05d}"
+        self.val_output_dir.mkdir(parents=True, exist_ok=True)
         
-        output_path = val_output_dir / f"{batch_idx:05d}.wav"
-        
-        save_wave(
-            fake_wave,
-            str(output_path),
-            sample_rate=self.cfg.dataset.sample_rate,
-        )
+        if batch_idx % self.cfg.ml.wav_save_every_n == 0:
+            output_path = self.val_output_dir / f"gen_{batch_idx:05d}.wav"
+            
+            save_wave(
+                fake_wave,
+                str(output_path),
+                sample_rate=self.cfg.dataset.sample_rate,
+            )
         return None
     
     def on_validation_epoch_start(self) -> None:
-        return super().on_validation_epoch_start()
+        self.evaluator.reset()
+        return None
     def on_validation_epoch_end(self) -> None:
-        return super().on_validation_epoch_end()
+        result = self.evaluator.get_results()
+        self.log("val/xvector_sim", result.xvector_sim, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val/gen_mos", result.gen_mos, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val/gen_mos_rate", result.gen_mos_rate, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val/speech_bert_score_precision", result.speech_bert_score_precision, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val/speech_bert_score_recall", result.speech_bert_score_recall, on_epoch=True, prog_bar=True, logger=True)
+        self.log("val/speech_bert_score_f1", result.speech_bert_score_f1, on_epoch=True, prog_bar=True, logger=True)
+        with open(self.val_output_dir / "result.txt", "w") as f:
+            f.write(f"xvector_sim: {result.xvector_sim}\n")
+            f.write(f"gen_mos: {result.gen_mos}\n")
+            f.write(f"gen_mos_rate: {result.gen_mos_rate}\n")
+            f.write(f"speech_bert_score_precision: {result.speech_bert_score_precision}\n")
+            f.write(f"speech_bert_score_recall: {result.speech_bert_score_recall}\n")
+            f.write(f"speech_bert_score_f1: {result.speech_bert_score_f1}\n")
+        
+        return None
 
     def configure_optimizers(self):
         optg_cfg = self.cfg.model.optim_g
