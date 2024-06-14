@@ -313,33 +313,36 @@ class ViTSModule(LightningModule):
             accent_pos_padded,
             speaker_id,
         ) = batch
+        
+        batch_size = real_wave.size(0)
+        
+        for i in range(batch_size):
+            with autocast(dtype=self._dtype):
+                fake_wave = self.net_g.text_to_speech(
+                    text_padded[i:i+1, :text_lengths[i]],
+                    text_lengths[i:i+1],
+                    accent_pos_padded[i:i+1, :text_lengths[i]],
+                    speaker_id[i:i+1]
+                )[0] # (1, 1, len) => (1, len)
 
-        _text_len = text_lengths[0]
-        with autocast(dtype=self._dtype):
-            fake_wave = self.net_g.text_to_speech(
-                text_padded[:1, :_text_len],
-                text_lengths[:1],
-                accent_pos_padded[:1, :_text_len],
-                speaker_id[:1]
-            )[0] # (1, 1, len) => (1, len)
-        
-        # 評価
-        real_wave = real_wave[0] # 1バッチ目のみ
-        self.evaluator.evaluate(self.val_resampler(real_wave), self.val_resampler(fake_wave))
-        
-        # 結果を保存
-        fake_wave = fake_wave.detach().cpu()
-        self.val_output_dir = Path(self.cfg.path.val_out_dir) / f"{self.current_epoch:05d}"
-        self.val_output_dir.mkdir(parents=True, exist_ok=True)
-        
-        if batch_idx % self.cfg.ml.wav_save_every_n == 0:
-            output_path = self.val_output_dir / f"gen_{batch_idx:05d}.wav"
+            # 評価
+            real_wave = real_wave[i] # 1バッチ目のみ
+            self.evaluator.evaluate(self.val_resampler(real_wave), self.val_resampler(fake_wave))
             
-            save_wave(
-                fake_wave,
-                str(output_path),
-                sample_rate=self.cfg.dataset.sample_rate,
-            )
+            # 結果を保存
+            fake_wave = fake_wave.detach().cpu()
+            self.val_output_dir = Path(self.cfg.path.val_out_dir) / f"{self.current_epoch:05d}"
+            self.val_output_dir.mkdir(parents=True, exist_ok=True)
+
+            wave_index = int(batch_idx * batch_size + i)
+            if wave_index % self.cfg.ml.wav_save_every_n == 0:
+                output_path = self.val_output_dir / f"gen_{wave_index:05d}.wav"
+                
+                save_wave(
+                    fake_wave,
+                    str(output_path),
+                    sample_rate=self.cfg.dataset.sample_rate,
+                )
         return None
     
     def on_validation_epoch_start(self) -> None:
