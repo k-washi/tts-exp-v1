@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 # Set timezone
 RUN ln --symbolic --force /usr/share/zoneinfo/Asia/Tokyo /etc/localtime

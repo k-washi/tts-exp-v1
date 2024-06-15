@@ -14,6 +14,6 @@ class DatasetConfig:
     f_min: int = 0
     add_blank_type: int = 0 # 0: なし, 1: 音素の前後に挿入, 2: モーラの前後に挿入
     accent_split: bool = False # アクセントを分割するか
-    accent_up_ignore = False # アクセント上昇を無視するか
+    accent_up_ignore: bool = False # アクセント上昇を無視するか
     use_distirubute_sampler: bool = True
     train_dataset_num: int = 4500

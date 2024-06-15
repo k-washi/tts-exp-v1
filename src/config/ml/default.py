@@ -15,6 +15,7 @@ class EvalatorConfig:
 class MLConfig:
     seed:int =  3407
     batch_size: int = 32
+    val_batch_size: int = 12
     num_workers: int = 4
     accumulate_grad_batches: int = 1
     grad_clip_val: float = 0.5

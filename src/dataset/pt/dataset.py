@@ -100,7 +100,7 @@ class AudioTextDataset(Dataset):
             tuple: A tuple containing the waveform and the spectrogram.
 
         """
-        waveform, _ = load_wave(str(audio_path), sample_rate=self.cfg.data.sample_rate, is_torch=True, mono=False)
+        waveform, _ = load_wave(str(audio_path), sample_rate=self.cfg.dataset.sample_rate, is_torch=True, mono=False)
         # waveform = waveform / torch.abs(waveform).max() * 0.9
         spec = spectrogram_torch(
             waveform, 
@@ -126,7 +126,7 @@ class AudioTextDataset(Dataset):
             symbol_list = read_symbols(str(text_path))
             phonome_list, accent_list = symbol_preprocess(
                 symbol_list, 
-                add_blank_typek=self.cfg.dataset.add_blank_type,
+                add_blank_type=self.cfg.dataset.add_blank_type,
                 accent_split=self.cfg.dataset.accent_split,
                 accent_up_ignore=self.cfg.dataset.accent_up_ignore
             )

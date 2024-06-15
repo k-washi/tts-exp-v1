@@ -23,6 +23,7 @@ def get_device():
     
 
 def get_dtype(mix_precision_type):
+    mix_precision_type = str(mix_precision_type)
     if mix_precision_type == str(16):
         return torch.float16
     elif mix_precision_type == str(32):

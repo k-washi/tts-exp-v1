@@ -38,7 +38,7 @@ class ViTSModule(LightningModule):
         self.cfg = cfg
         self.automatic_optimization = False
         # models
-        self.net_g = Generator(cfg.model.net_g, cfg.data)
+        self.net_g = Generator(cfg.model.net_g, cfg.dataset)
         self.net_d = HiFiGANMultiScaleMultiPeriodDiscriminator()
         
         #loss
@@ -63,14 +63,20 @@ class ViTSModule(LightningModule):
         #self._is_fp16 = cfg.ml.mix_precision == 16
         #self._scaler = GradScaler(enabled=self._is_fp16)
         self._dtype = get_dtype(cfg.ml.mix_precision)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.evaluator = TTSEvaluateManager(
             sr=cfg.ml.evaluator.sr,
             speech_bert_score_model=cfg.ml.evaluator.speech_bert_score_model,
-            device=self.device
+            device=self._device
         )
         self.val_output_dir = None
         self.val_resampler = torchaudio.transforms.Resample(cfg.dataset.sample_rate, cfg.ml.evaluator.sr)
+    
+    def load_model_from_ckpt(
+        self, net_g_path: str, net_d_path: str
+    ):
+        self.net_g.load_state_dict(torch.load(str(net_g_path)))
+        self.net_d.load_state_dict(torch.load(str(net_d_path)))
     
     def generator_process(self, batch, batch_idx, step="train"):
         optimizer_g, optimizer_d = self.optimizers()
@@ -304,8 +310,8 @@ class ViTSModule(LightningModule):
 
         # Batchの一部でSample VCを行う
         (
-            real_wave,
-            _,
+            real_wave_padded,
+            wav_lengths,
             _,
             _,
             text_padded,
@@ -314,7 +320,7 @@ class ViTSModule(LightningModule):
             speaker_id,
         ) = batch
         
-        batch_size = real_wave.size(0)
+        batch_size = real_wave_padded.size(0)
         
         for i in range(batch_size):
             with autocast(dtype=self._dtype):
@@ -326,7 +332,9 @@ class ViTSModule(LightningModule):
                 )[0] # (1, 1, len) => (1, len)
 
             # 評価
-            real_wave = real_wave[i] # 1バッチ目のみ
+            real_wave_length = wav_lengths[i]
+            real_wave = real_wave_padded[i, :, :real_wave_length] # 1バッチ目のみ
+            
             self.evaluator.evaluate(self.val_resampler(real_wave), self.val_resampler(fake_wave))
             
             # 結果を保存

@@ -21,6 +21,7 @@ class TTSDataModule(LightningDataModule):
         with open(cfg.path.valid_file_path, 'r', encoding='utf-8') as f:
             self.valid_namelist = f.read().splitlines()
         
+        self.train_dataset_num = len(self.train_namelist)
         self.cfg = cfg
         self.batch_size = cfg.ml.batch_size
         self.num_workers = cfg.ml.num_workers
@@ -38,7 +39,7 @@ class TTSDataModule(LightningDataModule):
             raise RuntimeError(f'Invalid stage: {stage}')
     
     def train_dataloader(self):
-        if self.cfg.data.use_distirubute_sampler:
+        if self.cfg.dataset.use_distirubute_sampler:
             # [0.3, 5, 10, 16],:wavの長さを左の長さに沿って組みを組んでからBatchを生成
             # batch内のPadを減らす
             train_sampler = DistributedBucketSampler(
@@ -75,6 +76,6 @@ class TTSDataModule(LightningDataModule):
                     collate_fn=collate_fn,
                     pin_memory=True,
                     shuffle=False,
-                    batch_size=1,
+                    batch_size=self.cfg.ml.val_batch_size,
                     drop_last=False
                 )

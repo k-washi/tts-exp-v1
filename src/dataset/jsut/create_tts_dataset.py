@@ -41,7 +41,7 @@ def create_tts_dataset_from_jsut(
     output_dir.mkdir(exist_ok=True)
     output_wav_dir = output_dir / "wav"
     output_wav_dir.mkdir(exist_ok=True)
-    output_txt_dir = output_dir / "phonome"
+    output_txt_dir = output_dir / "phoneme"
     output_txt_dir.mkdir(exist_ok=True)
     
     hts = HTSLabelFile()
@@ -52,7 +52,7 @@ def create_tts_dataset_from_jsut(
         fn = wav_fp.stem
         lab_fp = lab_dir / f"{fn}.lab"
         
-        # labfile to phonome
+        # labfile to phoneme
         labels = hts.load(str(lab_fp))
         PP = pp_symbols(labels.contexts)
         save_symbols(PP, str(output_txt_dir / f"{fn}.txt"))

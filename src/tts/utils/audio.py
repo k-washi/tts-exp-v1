@@ -44,7 +44,7 @@ def save_wave(wave, output_path, sample_rate:int=16000):
         wave = torch.from_numpy(wave)
 
     if wave.dim() == 1: wave = wave.unsqueeze(0)
-    torchaudio.save(filepath=str(output_path), src=wave.to(torch.float32), sample_rate=sample_rate)
+    torchaudio.save(uri=str(output_path), src=wave.to(torch.float32), sample_rate=sample_rate)
 
 # batch内の各tensorについて、start_indices[i]で指定されたindexから長さsegment_sizeの箇所を取り出す関数
 # 学習時、スペクトログラムや音声波形について、時間軸に沿って指定した長さだけ切り取るのに用いる
