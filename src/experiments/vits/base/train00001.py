@@ -27,7 +27,7 @@ seed_everything(cfg.ml.seed)
 # PARAMS #
 ##########
 
-VERSION = "00001"
+VERSION = "00002"
 EXP_ID = "vits_base"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 FAST_DEV_RUN = False
@@ -62,6 +62,9 @@ cfg.model.optim_d.lr = 2e-4
 cfg.model.optim_d.eps = 1e-4
 cfg.model.scheduler_g.use = True
 cfg.model.scheduler_d.use = True
+
+cfg.model.scheduler_g.warmup_epoch = 10
+cfg.model.scheduler_d.warmup_epoch = 10
 
 
 def train():

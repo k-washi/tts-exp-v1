@@ -41,7 +41,7 @@ class SchedulerG():
     name: str = "linear_w_warmup"
     gamma: float = 0.999995
     interval: str = "step"
-    warmup_rate: float = 0.1
+    warmup_epoch: int = 10
     
 
 @dataclass
@@ -50,7 +50,7 @@ class SchedulerD():
     name: str = "linear_w_warmup"
     gamma: float = 0.999995
     interval: str = "step"
-    warmup_rate: float = 0.1
+    warmup_epoch: int = 10
 
 @dataclass
 class GAdvLossConfig():

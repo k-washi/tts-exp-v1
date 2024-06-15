@@ -409,7 +409,7 @@ class ViTSModule(LightningModule):
             elif shg_cfg.name == "linear_w_warmup":
                 scheduler_g = get_linear_schedule_with_warmup(
                     optimizer=optimizer_g,
-                    num_warmup_steps=int(training_step * shg_cfg.warmup_rate),
+                    num_warmup_steps=int(self.cfg.dataset.train_dataset_num / self.cfg.ml.batch_size / self.cfg.ml.accumulate_grad_batches * shg_cfg.warmup_epoch),
                     num_training_steps=training_step,
                 )
             else:
@@ -422,7 +422,7 @@ class ViTSModule(LightningModule):
             elif shd_cfg.name == "linear_w_warmup":
                 scheduler_d = get_linear_schedule_with_warmup(
                     optimizer=optimizer_d,
-                    num_warmup_steps=int(training_step * shd_cfg.warmup_rate),
+                    num_warmup_steps=int(self.cfg.dataset.train_dataset_num / self.cfg.ml.batch_size / self.cfg.ml.accumulate_grad_batches * shd_cfg.warmup_epoch),
                     num_training_steps=training_step,
                 )
             else:
