@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torchaudio.compliance import kaldi
 from src.models.core.evaluator.speechbertscore import SpeechBertScore
 
+import traceback
 
 class TTSEvaluator:
     def __init__(
@@ -60,17 +61,32 @@ class TTSEvaluator:
         ref_mfcc = kaldi.mfcc(ref_audio, num_ceps=24, num_mel_bins=24).unsqueeze(0)
         gen_mfcc = kaldi.mfcc(gen_audio, num_ceps=24, num_mel_bins=24).unsqueeze(0)
         with torch.no_grad():
-            ref_xvector = self.xvector.vectorize(ref_mfcc)
-            gen_xvector = self.xvector.vectorize(gen_mfcc)
-            xvector_score = F.cosine_similarity(ref_xvector, gen_xvector)
-
-            ref_speech_mos = self.speech_mos(ref_audio, self.sr)
-            gen_speech_mos = self.speech_mos(gen_audio, self.sr)
-            speech_mos_rate =  gen_speech_mos / ref_speech_mos
-            
-            bert_score = self.speech_bert_score.score(ref_audio, gen_audio)
+            try:
+                ref_xvector = self.xvector.vectorize(ref_mfcc)
+                gen_xvector = self.xvector.vectorize(gen_mfcc)
+                xvector_score = F.cosine_similarity(ref_xvector, gen_xvector)
+                xvector_score = xvector_score.item()
+            except Exception as e:
+                print(f"Xvecter Error: {traceback.format_exc()}")
+                xvector_score = None
+            try:
+                ref_speech_mos = self.speech_mos(ref_audio, self.sr)
+                gen_speech_mos = self.speech_mos(gen_audio, self.sr)
+                speech_mos_rate =  gen_speech_mos / ref_speech_mos
+                gen_speech_mos = gen_speech_mos.item()
+                speech_mos_rate = speech_mos_rate.item()
+            except Exception as e:
+                print(f"Speech MOS Error: {traceback.format_exc()}")
+                gen_speech_mos = None
+                speech_mos_rate = None
+                
+            try:
+                bert_score = self.speech_bert_score.score(ref_audio, gen_audio)
+            except Exception as e:
+                print(f"Speech Bert Score Error: {traceback.format_exc()}")
+                bert_score = (None, None, None)
         
-        return xvector_score.item(),  (gen_speech_mos.item(),speech_mos_rate.item()),  bert_score
+        return xvector_score,  (gen_speech_mos, speech_mos_rate),  bert_score
 
 if __name__ == "__main__":
     evaluator = TTSEvaluator()

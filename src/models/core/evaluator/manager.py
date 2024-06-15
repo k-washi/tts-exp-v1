@@ -49,26 +49,33 @@ class TTSEvaluateManager():
             gen_audio=gen_audio
         )
         
-        self.xvector_sim_list.append(xvector_sim)
-        self.gen_mos_list.append(gen_mos)
-        self.gen_mos_rate_list.append(gen_mos_rate)
-        self.speech_bert_score_precision_list.append(precision)
-        self.speech_bert_score_recall_list.append(recall)
-        self.speech_bert_score_f1_list.append(f1)
+        if xvector_sim is not None:
+            self.xvector_sim_list.append(xvector_sim)
+        if gen_mos is not None:
+            self.gen_mos_list.append(gen_mos)
+        if gen_mos_rate is not None:
+            self.gen_mos_rate_list.append(gen_mos_rate)
+        if precision is not None:
+            self.speech_bert_score_precision_list.append(precision)
+        if recall is not None:
+            self.speech_bert_score_recall_list.append(recall)
+        if f1 is not None:
+            self.speech_bert_score_f1_list.append(f1)
     
     def get_results(self):
-        assert len(self.xvector_sim_list) == len(self.gen_mos_list) \
-            == len(self.gen_mos_rate_list) == len(self.speech_bert_score_precision_list) \
-            == len(self.speech_bert_score_recall_list) == len(self.speech_bert_score_f1_list), \
-            "The number of evaluation results do not match"
-            
-        assert len(self.xvector_sim_list) > 0, "No evaluation results found"
+        xvector_sim = sum(self.xvector_sim_list) / len(self.xvector_sim_list) if len(self.xvector_sim_list) > 0 else 0
+        gen_mos = sum(self.gen_mos_list) / len(self.gen_mos_list) if len(self.gen_mos_list) > 0 else 0
+        gen_mos_rate = sum(self.gen_mos_rate_list) / len(self.gen_mos_rate_list) if len(self.gen_mos_rate_list) > 0 else 0
+        speech_bert_score_precision = sum(self.speech_bert_score_precision_list) / len(self.speech_bert_score_precision_list) if len(self.speech_bert_score_precision_list) > 0 else 0
+        speech_bert_score_recall = sum(self.speech_bert_score_recall_list) / len(self.speech_bert_score_recall_list) if len(self.speech_bert_score_recall_list) > 0 else 0
+        speech_bert_score_f1 = sum(self.speech_bert_score_f1_list) / len(self.speech_bert_score_f1_list) if len(self.speech_bert_score_f1_list) > 0 else 0
         return TTSEvaluateResult(
-            xvector_sim=sum(self.xvector_sim_list) / len(self.xvector_sim_list),
-            gen_mos=sum(self.gen_mos_list) / len(self.gen_mos_list),
-            gen_mos_rate=sum(self.gen_mos_rate_list) / len(self.gen_mos_rate_list),
-            speech_bert_score_precision=sum(self.speech_bert_score_precision_list) / len(self.speech_bert_score_precision_list),
-            speech_bert_score_recall=sum(self.speech_bert_score_recall_list) / len(self.speech_bert_score_recall_list),
-            speech_bert_score_f1=sum(self.speech_bert_score_f1_list) / len(self.speech_bert_score_f1_list)
+            xvector_sim=xvector_sim,
+            gen_mos=gen_mos,
+            gen_mos_rate=gen_mos_rate,
+            speech_bert_score_precision=speech_bert_score_precision,
+            speech_bert_score_recall=speech_bert_score_recall,
+            speech_bert_score_f1=speech_bert_score_f1
         )
+
         
