@@ -145,3 +145,4 @@ outputs/
 wandb/
 logs/
 nohup/
+vits-exp-v1/
