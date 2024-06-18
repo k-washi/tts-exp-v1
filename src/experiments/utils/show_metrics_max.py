@@ -22,13 +22,14 @@ def show_metrics_max(target_dir:str, show_num:int=5):
         with open(res_file, "r") as f:
             lines = f.readlines()
             for line in lines:
-                if "xvector_sim" in line:
+                ref_name = line.split(":")[0]
+                if "xvector_sim" == ref_name:
                     xvector_sim = float(line.split(":")[-1].replace(" ", ""))
                     xvector_sim_list.append(xvector_sim)
-                if "gen_mos" in line:
-                    speech_mos_rate = float(line.split(":")[-1].replace(" ", ""))
-                    speech_mos_list.append(speech_mos_rate)
-                if "speech_bert_score_f1" in line:
+                if "gen_mos" == ref_name:
+                    speech_mos = float(line.split(":")[-1].replace(" ", ""))
+                    speech_mos_list.append(speech_mos)
+                if "speech_bert_score_f1" == ref_name:
                     speech_bert_score_f1 = float(line.split(":")[-1].replace(" ", ""))
                     speech_bert_score_f1_list.append(speech_bert_score_f1)
     
