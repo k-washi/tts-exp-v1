@@ -1,5 +1,6 @@
 """アクセント分割のVITS
 入力形式: 音素, アクセント記号分割
+アクセント分割でアクセント上昇を無視する
 """
 
 import torch
@@ -26,13 +27,13 @@ seed_everything(cfg.ml.seed)
 # PARAMS #
 ##########
 
-VERSION = "00001"
+VERSION = "00002"
 EXP_ID = "vits_accent"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 FAST_DEV_RUN = False
 
 cfg.ml.num_epochs = 5000
-cfg.ml.max_steps = 1000000
+cfg.ml.max_steps = 500000
 cfg.ml.batch_size = 24
 cfg.ml.val_batch_size = 12
 cfg.ml.num_workers = 8
@@ -44,7 +45,7 @@ cfg.ml.evaluator.speech_bert_score_model = "japanese-hubert-base" # 評価に用
 
 cfg.dataset.add_blank_type = 0 # 0: なし, 1: 音素の前後に挿入, 2: モーラの前後に挿入
 cfg.dataset.accent_split = True # アクセントを分割するか
-cfg.dataset.accent_up_ignore = False # アクセント上昇を無視するか
+cfg.dataset.accent_up_ignore = True # アクセント上昇を無視するか
 cfg.dataset.use_distirubute_sampler = True # データセットの長さに応じてバッチを生成するか
 
 LOG_SAVE_DIR = f"logs/{EXP_ID}_{VERSION}"
