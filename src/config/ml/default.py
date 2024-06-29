@@ -20,7 +20,10 @@ class MLConfig:
     accumulate_grad_batches: int = 1
     grad_clip_val: float = 0.5
     num_epochs: int = 100
-    check_val_every_n_epoch: int = 5
+    check_val_every_n_epoch: int = 10
+    early_stopping_patience: int = 50
+    early_stopping_mode: str = "max"
+    early_stopping_monitor: str = "val/speech_bert_score_f1"
     max_steps: int = 500000
     mix_precision: str = 32 # 16 or 32, bf16
     gpu_devices: int = 1

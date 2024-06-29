@@ -39,7 +39,7 @@ class OptimizerD():
 class SchedulerG():
     use: bool = True
     name: str = "linear_w_warmup"
-    gamma: float = 0.999995
+    gamma: float = 0.999998
     interval: str = "step"
     warmup_epoch: int = 10
     
@@ -48,7 +48,7 @@ class SchedulerG():
 class SchedulerD():
     use: bool = True
     name: str = "linear_w_warmup"
-    gamma: float = 0.999995
+    gamma: float = 0.999998
     interval: str = "step"
     warmup_epoch: int = 10
 

@@ -6,6 +6,7 @@ import torch
 from pathlib import Path
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from dataclasses import asdict
 
@@ -31,13 +32,16 @@ EXP_ID = "vits_accent"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 FAST_DEV_RUN = False
 
-cfg.ml.num_epochs = 5000
+cfg.ml.num_epochs = 10000
 cfg.ml.max_steps = 1000000
 cfg.ml.batch_size = 24
-cfg.ml.val_batch_size = 12
+cfg.ml.val_batch_size = 24
 cfg.ml.num_workers = 8
 cfg.ml.accumulate_grad_batches = 1
-cfg.ml.check_val_every_n_epoch = 1
+cfg.ml.check_val_every_n_epoch = 10
+cfg.ml.early_stopping_patience = 50
+cfg.ml.early_stopping_mode = "max"
+cfg.ml.early_stopping_monitor = "val/speech_bert_score_f1"
 cfg.ml.mix_precision = 32 # 16 or 32, bf16
 cfg.ml.wav_save_every_n = 20 # 500個のテスト音声に対して1/10の50個を保存
 cfg.ml.evaluator.speech_bert_score_model = "japanese-hubert-base" # 評価に用いるSSLモデル
@@ -79,13 +83,22 @@ def train():
     ################################
     # コールバックなど訓練に必要な設定
     ################################
-    wandb_logger = WandbLogger(name=f"{EXP_ID}_{VERSION}", version=VERSION, project=WANDB_PROJECT_NAME, config=asdict(cfg))
+    wandb_logger = WandbLogger(name=f"{EXP_ID}_{VERSION}", project=WANDB_PROJECT_NAME, config=asdict(cfg))
     wandb_logger.log_hyperparams(asdict(cfg))
     
     checkpoint_callback = CheckpointEveryEpoch(
         save_dir=cfg.path.model_save_dir,
+        every_n_epochs=cfg.ml.check_val_every_n_epoch
     )
-    callback_list = [checkpoint_callback, LearningRateMonitor(logging_interval='epoch')]
+    callback_list = [
+        checkpoint_callback, 
+        LearningRateMonitor(logging_interval='epoch'),
+        EarlyStopping(
+            monitor=cfg.ml.early_stopping_monitor,
+            patience=cfg.ml.early_stopping_patience,
+            mode=cfg.ml.early_stopping_mode
+        )
+    ]
     
     ################################
     # 訓練
@@ -100,7 +113,7 @@ def train():
             accumulate_grad_batches=cfg.ml.accumulate_grad_batches,
             profiler=cfg.ml.profiler,
             fast_dev_run=FAST_DEV_RUN,
-             check_val_every_n_epoch=cfg.ml.check_val_every_n_epoch,
+            check_val_every_n_epoch=cfg.ml.check_val_every_n_epoch,
             logger=wandb_logger,
             callbacks=callback_list,
             num_sanity_val_steps=2
