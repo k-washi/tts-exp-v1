@@ -33,8 +33,8 @@ EXP_ID = "vits_accent_up_ignore"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 FAST_DEV_RUN = False
 
-cfg.ml.num_epochs = 5000
-cfg.ml.max_steps = 500000
+cfg.ml.num_epochs = 10000
+cfg.ml.max_steps = 1000000
 cfg.ml.batch_size = 24
 cfg.ml.val_batch_size = 12
 cfg.ml.num_workers = 8
