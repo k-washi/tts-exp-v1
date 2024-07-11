@@ -6,6 +6,7 @@ class netG():
     phoneme_embedding_dim:int = 192 #各音素の埋め込み先のベクトルの大きさ
     spec_channels:int = 513 #入力する線形スペクトログラムの縦軸(周波数)の次元
     z_channels:int = 192 #PosteriorEncoderから出力されるzのchannel数 (phonome_embedding_dimと合わせる)
+    flow_n_resblocks:int = 4
     speaker_id_embedding_dim:int = 128 #話者idの埋め込み先のベクトルの大きさ
     text_encoders_dropout_during_train:float = 0.1 #学習時のtext_encoderのdropoutの割合
     text_n_heads:int = 2 #self.encoder内の、transformerに似た構造のモジュールで使われている、MultiHeadAttentionのhead数
@@ -16,6 +17,9 @@ class netG():
     duration_kernel_size:int = 3
     duration_p_dropout:float = 0.5
     duration_n_flows:int = 4
+    use_noise_scaled_mas: bool = False
+    mas_nosie_scale_initial: float = 0.01
+    mas_noise_scale_delta: float = 2e-6
 
 @dataclass
 class netD():
