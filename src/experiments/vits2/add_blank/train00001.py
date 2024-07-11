@@ -75,7 +75,7 @@ cfg.model.scheduler_d.warmup_epoch = 10
 # VITS2
 cfg.model.net_g.use_noise_scaled_mas = True
 cfg.model.net_g.mas_nosie_scale_initial = 0.01
-cfg.model.net_g.mas_noise_scale_delta = 2e-7
+cfg.model.net_g.mas_noise_scale_delta = 2e-6
 cfg.model.net_g.flow_n_resblocks = 2
 
 
