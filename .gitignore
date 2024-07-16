@@ -146,3 +146,4 @@ wandb/
 logs/
 nohup/
 vits-exp-v1/
+lightning_logs/

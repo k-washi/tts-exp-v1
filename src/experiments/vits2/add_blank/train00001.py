@@ -27,8 +27,8 @@ seed_everything(cfg.ml.seed)
 # PARAMS #
 ##########
 
-VERSION = "00001"
-EXP_ID = "vits2_accent_mblank"
+VERSION = "00004"
+EXP_ID = "vits2_accent_mblank_flowfft"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 IS_LOGGING = True
 FAST_DEV_RUN = False
@@ -40,7 +40,7 @@ cfg.ml.batch_size = 18
 cfg.ml.val_batch_size = 18
 cfg.ml.num_workers = 8
 cfg.ml.accumulate_grad_batches = 1
-cfg.ml.grad_clip_val = 10
+cfg.ml.grad_clip_val = 100
 cfg.ml.check_val_every_n_epoch = 10
 cfg.ml.early_stopping_patience = 50
 cfg.ml.early_stopping_mode = "max"
@@ -75,8 +75,9 @@ cfg.model.scheduler_d.warmup_epoch = 10
 # VITS2
 cfg.model.net_g.use_noise_scaled_mas = True
 cfg.model.net_g.mas_nosie_scale_initial = 0.01
-cfg.model.net_g.mas_noise_scale_delta = 2e-6
-cfg.model.net_g.flow_n_resblocks = 2
+cfg.model.net_g.mas_noise_scale_delta = 5e-7
+cfg.model.net_g.flow_n_resblocks = 4
+cfg.model.net_g.flow_layer_type = "FFTransformerCouplingLayer"
 
 
 def train():

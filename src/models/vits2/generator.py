@@ -70,11 +70,17 @@ class Generator(nn.Module):
                         speaker_id_embedding_dim=cfg.speaker_id_embedding_dim,#話者idの埋め込み先のベクトルの大きさ
                         in_z_channel=cfg.z_channels #入力するzのchannel数
                         )
+        if cfg.flow_layer_type == "FFTransformerCouplingLayer":
+            flow_layer_type = FlowLayerType.FFTransformerCouplingLayer
+        elif cfg.flow_layer_type == "FFTransformerCouplingLayer2":
+            flow_layer_type = FlowLayerType.FFTransformerCouplingLayer2
+        else:
+            raise ValueError(f"Invalid flow_layer_type: {cfg.flow_layer_type}")
         self.flow = Flow(
                       speaker_id_embedding_dim=cfg.speaker_id_embedding_dim,#話者idの埋め込み先のベクトルの大きさ
                       in_z_channels=cfg.z_channels,#入力するzのchannel数
                       phoneme_embedding_dim=cfg.phoneme_embedding_dim,#TextEncoderで作成した、埋め込み済み音素のベクトルの大きさ
-                      layer_type=FlowLayerType.ResidualCouplingTransformerLayer,
+                      layer_type=flow_layer_type,
                       n_resblocks=cfg.flow_n_resblocks
                     )
         self.stochastic_duration_predictor = StochasticDurationPredictor(
