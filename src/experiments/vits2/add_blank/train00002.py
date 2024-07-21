@@ -27,7 +27,7 @@ seed_everything(cfg.ml.seed)
 # PARAMS #
 ##########
 
-VERSION = "00004"
+VERSION = "00202"
 EXP_ID = "vits2_accent_mblank_flowfft"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 IS_LOGGING = True
@@ -48,6 +48,7 @@ cfg.ml.early_stopping_monitor = "val/speech_bert_score_f1"
 cfg.ml.mix_precision = 32 # 16 or 32, bf16
 cfg.ml.wav_save_every_n = 20 # 500個のテスト音声に対して1/10の50個を保存
 cfg.ml.evaluator.speech_bert_score_model = "japanese-hubert-base" # 評価に用いるSSLモデル
+
 
 cfg.dataset.add_blank_type = 2 # 0: なし, 1: 音素の前後に挿入, 2: モーラの前後に挿入
 cfg.dataset.accent_split = True # アクセントを分割するか
@@ -77,7 +78,7 @@ cfg.model.net_g.use_noise_scaled_mas = True
 cfg.model.net_g.mas_nosie_scale_initial = 0.01
 cfg.model.net_g.mas_noise_scale_delta = 5e-7
 cfg.model.net_g.flow_n_resblocks = 4
-cfg.model.net_g.flow_layer_type = "FFTransformerCouplingLayer"
+cfg.model.net_g.flow_layer_type = "FFTransformerCouplingLayer2"
 
 
 def train():
@@ -122,7 +123,7 @@ def train():
             devices=cfg.ml.gpu_devices,
             max_epochs=cfg.ml.num_epochs,
             max_steps=cfg.ml.max_steps,
-            accumulate_grad_batches=cfg.ml.accumulate_grad_batches,
+            #accumulate_grad_batches=cfg.ml.accumulate_grad_batches,
             profiler=cfg.ml.profiler,
             fast_dev_run=FAST_DEV_RUN,
             check_val_every_n_epoch=cfg.ml.check_val_every_n_epoch,
