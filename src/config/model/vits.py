@@ -68,6 +68,13 @@ class DAdvLossConfig():
     loss_type: str = "mse"
 
 @dataclass
+class WavLMAdvLossConfig():
+    model:str = "microsoft/wavlm-base-plus"
+    hidden: int = 768
+    nlayers: int = 13
+    initial_channel: int = 64
+    sr: int = 16000
+@dataclass
 class FeatureMatchLossConfig():
     average_by_discriminators: bool = False
     average_by_layers: bool = False
@@ -97,4 +104,5 @@ class ModelConfig:
     scheduler_g:SchedulerG = field(default_factory=lambda:SchedulerG())
     scheduler_d:SchedulerD = field(default_factory=lambda:SchedulerD())
     loss: Loss = field(default_factory=lambda:Loss())
+    wavlm_d: WavLMAdvLossConfig = field(default_factory=lambda:WavLMAdvLossConfig())
     

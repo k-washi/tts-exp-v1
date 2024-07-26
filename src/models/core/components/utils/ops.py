@@ -1,6 +1,13 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.nn.utils import weight_norm, remove_weight_norm
+
+
+def init_weights(m, mean=0.0, std=0.01):
+    classname = m.__class__.__name__
+    if classname.find("Conv") != -1:
+        m.weight.data.normal_(mean, std)
 
 class LayerNorm(nn.Module):
     def __init__(self, channels, eps=1e-5):
@@ -125,6 +132,32 @@ class DownBlock(nn.Module):
         x = self.gelu(x)
         return self.conv(x)
 
+class LoRALinear1d(nn.Module):
+    def __init__(self, in_channels, out_channels, info_channels, r):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.info_channels = info_channels
+        self.r = r
+        self.main_fc = weight_norm(nn.Conv1d(in_channels, out_channels, 1))
+        self.adapter_in = nn.Conv1d(info_channels, in_channels * r, 1)
+        self.adapter_out = nn.Conv1d(info_channels, out_channels * r, 1)
+        nn.init.normal_(self.adapter_in.weight.data, 0, 0.01)
+        nn.init.constant_(self.adapter_out.weight.data, 1e-6)
+        init_weights(self.main_fc)
+        self.adapter_in = weight_norm(self.adapter_in)
+        self.adapter_out = weight_norm(self.adapter_out)
+
+    def forward(self, x, g):
+        a_in = self.adapter_in(g).view(-1, self.in_channels, self.r)
+        a_out = self.adapter_out(g).view(-1, self.r, self.out_channels)
+        x = self.main_fc(x) + torch.einsum("brl,brc->bcl", torch.einsum("bcl,bcr->brl", x, a_in), a_out)
+        return x
+
+    def remove_weight_norm(self):
+        remove_weight_norm(self.main_fc)
+        remove_weight_norm(self.adapter_in)
+        remove_weight_norm(self.adapter_out)
 
 if __name__ == "__main__":
     import torch
