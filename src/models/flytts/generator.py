@@ -13,7 +13,8 @@ from src.tts.phonome.param import (
 from src.models.core.components.text_encoder import TextEncoder, EncoderCFG
 from src.models.core.components.posterior_encoder import PosteriorEncoder
 from src.models.core.components.flytts.decode import VocosDecoder as Decoder
-from src.models.core.components.flytts.flow import ParamShareFlow as Flow
+from src.models.core.components.flow import Flow, FlowLayerType
+# from src.models.core.components.flytts.flow import ParamShareFlow as Flow
 from src.models.core.components.stochastic_duration_predictor import StochasticDurationPredictor
 from src.models.core.components.utils.commons import sequence_mask
 from src.models.core.components.generate_path import generate_path
@@ -69,23 +70,24 @@ class Generator(nn.Module):
         self.decoder = Decoder(
                         speaker_id_embedding_dim=cfg.speaker_id_embedding_dim,#話者idの埋め込み先のベクトルの大きさ
                         in_z_channel=cfg.z_channels, #入力するzのchannel数
-                        gen_istft_hop_sizes=data_cfg.win_length,
+                        gen_istft_n_fft=data_cfg.win_length,
                         gen_istft_hop_sizes=data_cfg.hop_length,
                         is_onnx=True
                     )
         self.flow = Flow(
-                      speaker_id_embedding_dim=cfg.speaker_id_embedding_dim,#話者idの埋め込み先のベクトルの大きさ
-                      in_z_channels=cfg.z_channels,#入力するzのchannel数
-                      phoneme_embedding_dim=cfg.phoneme_embedding_dim,#TextEncoderで作成した、埋め込み済み音素のベクトルの大きさ
-                      n_resblocks=cfg.flow_n_resblocks
+                        speaker_id_embedding_dim=cfg.speaker_id_embedding_dim,#話者idの埋め込み先のベクトルの大きさ
+                        in_z_channels=cfg.z_channels,#入力するzのchannel数
+                        phoneme_embedding_dim=cfg.phoneme_embedding_dim,#TextEncoderで作成した、埋め込み済み音素のベクトルの大きさ
+                        n_resblocks=cfg.flow_n_resblocks,
+                        layer_type=FlowLayerType.ResidualCouplingLayer
                     )
         self.stochastic_duration_predictor = StochasticDurationPredictor(
-                      speaker_id_embedding_dim=cfg.speaker_id_embedding_dim,#話者idの埋め込み先のベクトルの大きさ
-                      phoneme_embedding_dim=cfg.phoneme_embedding_dim,#TextEncoderで作成した、埋め込み済み音素のベクトルの大きさ
-                      filter_channels=cfg.duration_filter_channels,
-                      kernel_size=cfg.duration_kernel_size,
-                      p_dropout=cfg.duration_p_dropout,
-                      n_flows=cfg.duration_n_flows
+                        speaker_id_embedding_dim=cfg.speaker_id_embedding_dim,#話者idの埋め込み先のベクトルの大きさ
+                        phoneme_embedding_dim=cfg.phoneme_embedding_dim,#TextEncoderで作成した、埋め込み済み音素のベクトルの大きさ
+                        filter_channels=cfg.duration_filter_channels,
+                        kernel_size=cfg.duration_kernel_size,
+                        p_dropout=cfg.duration_p_dropout,
+                        n_flows=cfg.duration_n_flows
                     )
     
     def forward(

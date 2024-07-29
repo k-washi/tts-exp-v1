@@ -15,7 +15,7 @@ from src.config.config import Config
 
 from src.models.flytts.generator import Generator
 from src.models.core.discriminator.hifigan import HiFiGANMultiScaleMultiPeriodDiscriminator
-from src.models.core.discriminator.dur_discriminator import DurationDiscriminator
+# from src.models.core.discriminator.dur_discriminator import DurationDiscriminator
 from src.models.core.discriminator.wavlm_discriminator import WavLMDiscriminator, WavLMLoss
 
 from src.models.vits.loss import (
@@ -44,11 +44,11 @@ class ViTSModule(LightningModule):
         # models
         self.net_g = Generator(cfg.model.net_g, cfg.dataset)
         self.net_d = HiFiGANMultiScaleMultiPeriodDiscriminator()
-        self.net_dur_d = DurationDiscriminator(
-            cfg.model.net_g.z_channels,
-            cfg.model.net_g.z_channels,
-            kernel_size=cfg.model.net_g.duration_kernel_size
-        )
+        # self.net_dur_d = DurationDiscriminator(
+        #     cfg.model.net_g.z_channels,
+        #     cfg.model.net_g.z_channels,
+        #     kernel_size=cfg.model.net_g.duration_kernel_size
+        # )
         
         self.wavlm_d = WavLMDiscriminator(
             slm_hidden=cfg.model.wavlm_d.hidden,
@@ -180,15 +180,15 @@ class ViTSModule(LightningModule):
             p_fake = self.net_d(wav_fake.detach())
             
             # dur discriminator
-            y_dur_hat_r, y_hat_dur_g = self.net_dur_d(
-                text_encoded.detach(),
-                text_mask.detach(),
-                logw_.detach(),
-                logw.detach()
-            )
-            (
-                adversarial_loss_dur_D, _, _ 
-            ) = discriminator_loss(y_dur_hat_r, y_hat_dur_g)
+            # y_dur_hat_r, y_hat_dur_g = self.net_dur_d(
+            #     text_encoded.detach(),
+            #     text_mask.detach(),
+            #     logw_.detach(),
+            #     logw.detach()
+            # )
+            # (
+            #     adversarial_loss_dur_D, _, _ 
+            # ) = discriminator_loss(y_dur_hat_r, y_hat_dur_g)
             
             # wavlm discriminator
             adversarial_loss_slm_D = self.d_wav_lm_loss.discriminator(
@@ -200,9 +200,6 @@ class ViTSModule(LightningModule):
             adversarial_loss_D = (
                 self.d_adv_loss(p_fake, p_real)
                 * self.cfg.model.loss.adversarial_loss_D_lambda
-            )  # adversarial loss
-            adversarial_loss_dur_D = (
-                adversarial_loss_dur_D * self.cfg.model.loss.adversarial_loss_D_lambda
             )
             
             adversarial_loss_slm_D = (
@@ -218,13 +215,6 @@ class ViTSModule(LightningModule):
                 prog_bar=True,
                 logger=True,
             )
-            self.log(
-                f"{step}/adversarial_loss_dur_D",
-                adversarial_loss_dur_D,
-                on_step=True,
-                prog_bar=True,
-                logger=True,
-            )
             
             self.log(
                 f"{step}/adversarial_loss_wavlm_loss",
@@ -234,7 +224,7 @@ class ViTSModule(LightningModule):
                 logger=True,
             )
             
-            total_adversarial_loss_D = adversarial_loss_D + adversarial_loss_dur_D + adversarial_loss_slm_D
+            total_adversarial_loss_D = adversarial_loss_D + adversarial_loss_slm_D
             if step == "train":
                 #self._scaler(adversarial_loss_D).backward()
                 #self._scaler.unscale_(optimizer_d)
@@ -253,14 +243,6 @@ class ViTSModule(LightningModule):
         # Generatorノ更新
         p_real = self.net_d(wav_real)
         p_fake = self.net_d(wav_fake)
-        # dur discriminator
-        y_dur_hat_r, y_hat_dur_g = self.net_dur_d(
-            text_encoded,
-            text_mask,
-            logw_,
-            logw
-        )
-        adversarial_loss_dur_G, _ = generator_loss(y_hat_dur_g)
         
         # wavlm discriminator
         loss_wavlm_embs = self.d_wav_lm_loss(wav_real.detach().squeeze(), wav_fake.squeeze()).mean()
@@ -285,11 +267,6 @@ class ViTSModule(LightningModule):
         )
         adversarial_loss_G = (
             self.g_adv_loss(p_fake)
-            * self.cfg.model.loss.adversarial_loss_G_lambda
-        )
-        
-        adversarial_loss_dur_G = (
-            adversarial_loss_dur_G
             * self.cfg.model.loss.adversarial_loss_G_lambda
         )
         
@@ -320,7 +297,6 @@ class ViTSModule(LightningModule):
                 + duration_loss
                 + feature_matching_loss
                 + adversarial_loss_G
-                + adversarial_loss_dur_G
                 + adversarial_loss_wavlm_G
                 + wavlm_embs_loss
                 + si_snr_loss
@@ -353,13 +329,6 @@ class ViTSModule(LightningModule):
         self.log(
             f"{step}/adversarial_loss_G",
             adversarial_loss_G,
-            on_step=True,
-            prog_bar=True,
-            logger=True,
-        )
-        self.log(
-            f"{step}/adversarial_loss_dur_G",
-            adversarial_loss_dur_G,
             on_step=True,
             prog_bar=True,
             logger=True,
@@ -408,7 +377,6 @@ class ViTSModule(LightningModule):
         self.net_g.update_current_mas_noise_scale()
         self.log("mas_noise_scale", self.net_g.current_mas_noise_scale, on_epoch=True, prog_bar=True, logger=True)
         
-
     def validation_step(self, batch, batch_idx):
         # Loss計算・Log作成
         self.generator_process(batch, batch_idx, step="val")
@@ -497,7 +465,7 @@ class ViTSModule(LightningModule):
 
         if optd_cfg.name == "AdamW":
             optimizer_d = torch.optim.AdamW(
-                list(self.net_d.parameters()) + list(self.net_dur_d.parameters()) + list(self.d_wav_lm_loss.parameters()),
+                list(self.net_d.parameters()) + list(self.d_wav_lm_loss.parameters()),
                 lr=optd_cfg.lr,
                 eps=optd_cfg.eps,
                 betas=optd_cfg.betas,

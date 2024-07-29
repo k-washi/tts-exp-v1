@@ -10,7 +10,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from dataclasses import asdict
 
-from src.models.vits2.plmodule import ViTSModule
+from src.models.flytts.plmodule_noduradv import ViTSModule
 from src.dataset.pt.plmodule import TTSDataModule
 from src.experiments.utils.pl_callbacks import CheckpointEveryEpoch
 
@@ -27,8 +27,8 @@ seed_everything(cfg.ml.seed)
 # PARAMS #
 ##########
 
-VERSION = "00301"
-EXP_ID = "flytts_accent_mblank"
+VERSION = "00310"
+EXP_ID = "flytts_accent_mblank_noduradv"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 IS_LOGGING = True
 FAST_DEV_RUN = False
@@ -36,10 +36,10 @@ FAST_DEV_RUN = False
 
 cfg.ml.num_epochs = 10000
 cfg.ml.max_steps = 1000000
-cfg.ml.batch_size = 12
-cfg.ml.val_batch_size = 12
+cfg.ml.batch_size = 30
+cfg.ml.val_batch_size = 30
 cfg.ml.num_workers = 8
-cfg.ml.accumulate_grad_batches = 2
+cfg.ml.accumulate_grad_batches = 1
 cfg.ml.grad_clip_val = 100
 cfg.ml.check_val_every_n_epoch = 50
 cfg.ml.early_stopping_patience = 500
@@ -54,7 +54,7 @@ cfg.dataset.add_blank_type = 2 # 0: なし, 1: 音素の前後に挿入, 2: モ�
 cfg.dataset.accent_split = True # アクセントを分割するか
 cfg.dataset.accent_up_ignore = False # アクセント上昇を無視するか
 cfg.dataset.use_distirubute_sampler = True # データセットの長さに応じてバッチを生成するか
-
+cfg.dataset.segment_size = 16384
 LOG_SAVE_DIR = f"logs/{EXP_ID}_{VERSION}"
 cfg.path.model_save_dir = f"{LOG_SAVE_DIR}/ckpt"
 cfg.path.val_out_dir = f"{LOG_SAVE_DIR}/val"
@@ -70,15 +70,14 @@ cfg.model.optim_d.eps = 1e-4
 cfg.model.scheduler_g.use = True
 cfg.model.scheduler_d.use = True
 
-cfg.model.scheduler_g.warmup_epoch = 10
-cfg.model.scheduler_d.warmup_epoch = 10
+cfg.model.scheduler_g.warmup_epoch = 1
+cfg.model.scheduler_d.warmup_epoch = 1
 
 # VITS2
 cfg.model.net_g.use_noise_scaled_mas = True
 cfg.model.net_g.mas_nosie_scale_initial = 0.01
 cfg.model.net_g.mas_noise_scale_delta = 5e-7
 cfg.model.net_g.flow_n_resblocks = 4
-cfg.model.net_g.flow_layer_type = "FFTransformerCouplingLayer2"
 
 
 def train():

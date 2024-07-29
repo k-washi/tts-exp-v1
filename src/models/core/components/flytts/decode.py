@@ -129,7 +129,6 @@ class VocosDecoder(torch.nn.Module):
         else:
             # z, speaker_id_embedded両者のchannel数をconv1dによって揃える
             x = self.cond(self.embed(z), speaker_id_embedded)
-        print(x.shape)
         # 各Deconv1d層の適用
         for conv_block in self.convnext:
             x = conv_block(x)

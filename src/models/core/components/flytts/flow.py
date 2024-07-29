@@ -118,26 +118,23 @@ class ParamShareFlow(nn.Module):
         z_p = z
         z_p_mask = z_mask
         if reverse:
-            z_p = self.flip(z_p)
-            z_p_mask = self.flip(z_p_mask)
+            z_p = self.flip(z_p, z_p_mask)
         x0, x1 = torch.split(z_p, [self.harl_channels] * 2, 1)
-        for i in range(self.n_flows):
-            # 入力Tensorであるxをchannelの次元に沿って半分ずつに分割、それぞれx0、x1とする
-            # x0に対しconv1dを適用
-            h = self.pre_nets[i](x0) * z_mask
-            # WNを用いて特徴量の抽出を行う
-            h = self.wn(h, z_mask, speaker_id_embedded=speaker_id_embedded)
-            # 抽出した特徴量からx1の平均値をどれだけずらすか決める値を生成する
-            x1_mean = self.post_nets[i](h) * z_mask
-            if reverse:
-                x1 = (x1 - x1_mean) * z_mask
-            else:
-                x1 = x1_mean + x1 * z_mask
-        
-        z_p = torch.cat([x0, x1], 1)
-        
         if not reverse:
-            z_p = self.flip(z_p)
+            for prenet, postnet in zip(self.pre_nets, self.post_nets):
+                h = prenet(x0) * z_p_mask
+                h = self.wn(h, z_p_mask, speaker_id_embedded=speaker_id_embedded)
+                x1_mean = postnet(h) * z_p_mask
+                x1 = x1_mean + x1 * z_p_mask
+        else:
+            for prenet, postnet in zip(reversed(self.pre_nets), reversed(self.post_nets)):
+                h = prenet(x0) * z_p_mask
+                h = self.wn(h, z_p_mask, speaker_id_embedded=speaker_id_embedded)
+                x1_mean = postnet(h) * z_p_mask
+                x1 = (x1 - x1_mean) * z_p_mask
+        z_p = torch.cat([x0, x1], 1)
+        if not reverse:
+            z_p = self.flip(z_p, z_p_mask)
         
         return z_p
     

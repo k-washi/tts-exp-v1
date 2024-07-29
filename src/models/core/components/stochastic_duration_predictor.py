@@ -389,7 +389,8 @@ class StochasticDurationPredictor(nn.Module):
         x = self.pre(x)
 
         if speaker_id_embedded is not None:
-            x = x + self.spk_conv(speaker_id_embedded.detach())
+            speaker_id_embedded = speaker_id_embedded.detach()
+            x = x + self.spk_conv(speaker_id_embedded)
 
         x = self.convs(x, text_mask)
         x = self.proj(x) * text_mask
@@ -443,3 +444,13 @@ class StochasticDurationPredictor(nn.Module):
             z0, z1 = torch.split(z, [1, 1], 1)
             logw = z0
             return logw
+        
+if __name__ == "__main__":
+    f = StochasticDurationPredictor(
+        speaker_id_embedding_dim=128,
+        phoneme_embedding_dim=192,
+        filter_channels=192,
+        kernel_size=3,
+        p_dropout=0.5,
+        n_flows=4,
+    )

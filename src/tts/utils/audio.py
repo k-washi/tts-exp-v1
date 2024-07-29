@@ -87,6 +87,7 @@ def rand_slice_segments(x, x_lengths, segment_size):
     """
     b, d, t = x.size()
     ids_str_max = x_lengths - segment_size + 1
+    ids_str_max = torch.clamp(ids_str_max, min=0)
     ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(
         dtype=torch.long
     )
