@@ -34,8 +34,8 @@ WANDB_PROJECT_NAME = "vits-exp-v1"
 IS_LOGGING = True
 FAST_DEV_RUN = False
 
-PRETRAIN_GEN_MODEL = "logs/flytts_accent_mblank_noduradv_00310/ckpt/ckpt-4350/net_g.pth"
-PRETRAIN_D_MODEL = "logs/flytts_accent_mblank_noduradv_00310/ckpt/ckpt-4350/net_d.pth"
+# PRETRAIN_GEN_MODEL = "logs/flytts_accent_mblank_noduradv_00310/ckpt/ckpt-4350/net_g.pth"
+# PRETRAIN_D_MODEL = "logs/flytts_accent_mblank_noduradv_00310/ckpt/ckpt-4350/net_d.pth"
 
 cfg.ml.num_epochs = 10000
 cfg.ml.max_steps = 1000000
@@ -96,8 +96,8 @@ def train():
     cfg.dataset.train_dataset_num = dataset.train_dataset_num
     model = MsISTFTModule(cfg)
     
-    model.net_g.load_state_dict(torch.load(PRETRAIN_GEN_MODEL))
-    model.net_d.load_state_dict(torch.load(PRETRAIN_D_MODEL))
+    # model.net_g.load_state_dict(torch.load(PRETRAIN_GEN_MODEL))
+    # model.net_d.load_state_dict(torch.load(PRETRAIN_D_MODEL))
     
     ################################
     # コールバックなど訓練に必要な設定
