@@ -54,7 +54,7 @@ class TTSDataModule(LightningDataModule):
                 self.train_dataset,
                 num_workers=self.num_workers,
                 collate_fn=collate_fn,
-                pin_memory=True,
+                pin_memory=False,
                 batch_sampler=train_sampler
             )
         
@@ -74,7 +74,7 @@ class TTSDataModule(LightningDataModule):
                     self.val_dataset,
                     num_workers=self.num_workers,
                     collate_fn=collate_fn,
-                    pin_memory=True,
+                    pin_memory=False,
                     shuffle=False,
                     batch_size=self.cfg.ml.val_batch_size,
                     drop_last=False

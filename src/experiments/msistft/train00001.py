@@ -39,9 +39,9 @@ FAST_DEV_RUN = False
 
 cfg.ml.num_epochs = 10000
 cfg.ml.max_steps = 1000000
-cfg.ml.batch_size = 28
-cfg.ml.val_batch_size = 30
-cfg.ml.num_workers = 8
+cfg.ml.batch_size = 24
+cfg.ml.val_batch_size = 24
+cfg.ml.num_workers = 2
 cfg.ml.accumulate_grad_batches = 1
 cfg.ml.grad_clip_val = 100
 cfg.ml.check_val_every_n_epoch = 50
@@ -73,8 +73,8 @@ cfg.model.optim_d.eps = 1e-4
 cfg.model.scheduler_g.use = True
 cfg.model.scheduler_d.use = True
 
-cfg.model.scheduler_g.warmup_epoch = 100
-cfg.model.scheduler_d.warmup_epoch = 100
+cfg.model.scheduler_g.warmup_epoch = 1
+cfg.model.scheduler_d.warmup_epoch = 1
 
 # VITS2
 cfg.model.net_g.use_noise_scaled_mas = True

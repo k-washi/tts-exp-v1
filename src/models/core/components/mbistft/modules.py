@@ -5,14 +5,12 @@ from torch import nn
 from torch.nn import functional as F
 from torch.nn.utils import weight_norm, remove_weight_norm
 
-from src.models.core.components.mbistft.pqmf import PQMF
 from src.models.core.components.flytts.stft import OnnxSTFT
 from src.models.core.components.flytts.decode import get_padding
 from src.models.core.components.utils.ops import init_weights, LoRALinear1d
 import math
 
 LRELU_SLOPE = 0.1
-
 
 class ConvNextBottleNeck(nn.Module):
     def __init__(
@@ -199,8 +197,9 @@ class Multistream_iSTFT_Generator(torch.nn.Module):
             )
 
 
-    def forward(self, x, g=None):
+    def forward(self, x, speaker_id_embedded=None):
         # x: [B, 192, length]
+        g = speaker_id_embedded
         self.stft.to(x.device)
         # add speaker embedding
         if g is None:

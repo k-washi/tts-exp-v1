@@ -17,13 +17,17 @@ class CheckpointEveryEpoch(pl.Callback):
             save_dir.mkdir(exist_ok=True, parents=True)
             net_g_save_path = save_dir / "net_g.pth"
             net_d_save_path = save_dir / "net_d.pth"
+            net_wavlm_d_save_path = save_dir / "wavlm_d.pth"
+            
             if hasattr(trainer, "model"):
                 if hasattr(trainer.model, "module"):
                     torch.save(trainer.model.module.net_g.state_dict(), net_g_save_path)
                     torch.save(trainer.model.module.net_d.state_dict(), net_d_save_path)
+                    torch.save(trainer.model.module.wavlm_d.state_dict(), net_wavlm_d_save_path)
                 else:
                     torch.save(trainer.model.net_g.state_dict(), net_g_save_path)
                     torch.save(trainer.model.net_d.state_dict(), net_d_save_path)
+                    torch.save(trainer.model.wavlm_d.state_dict(), net_wavlm_d_save_path)
                 return None
 
 

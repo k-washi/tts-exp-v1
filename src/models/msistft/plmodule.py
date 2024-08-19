@@ -72,6 +72,7 @@ class MsISTFTModule(LightningModule):
             model_sr=cfg.dataset.sample_rate,
             slm_sr=cfg.model.wavlm_d.sr
         )
+        self.d_wav_lm_loss.wavlm.eval()
 
         self.feat_match_loss = FeatureMatchLoss(
             average_by_discriminators=loss_cfg.feat_match_loss.average_by_discriminators,
@@ -101,6 +102,7 @@ class MsISTFTModule(LightningModule):
         self.net_d.load_state_dict(torch.load(str(net_d_path)))
     
     def generator_process(self, batch, batch_idx, step="train"):
+        self.d_wav_lm_loss.wavlm.eval()
         optimizer_g, optimizer_d = self.optimizers()
         (
             wav_padded,
