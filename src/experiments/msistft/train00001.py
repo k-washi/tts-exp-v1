@@ -28,7 +28,7 @@ seed_everything(cfg.ml.seed)
 # PARAMS #
 ##########
 
-VERSION = "00401"
+VERSION = "00402"
 EXP_ID = "msistft_accent_mblank_noduradv"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 IS_LOGGING = True
@@ -41,9 +41,9 @@ cfg.ml.num_epochs = 10000
 cfg.ml.max_steps = 1000000
 cfg.ml.batch_size = 24
 cfg.ml.val_batch_size = 24
-cfg.ml.num_workers = 2
+cfg.ml.num_workers = 8
 cfg.ml.accumulate_grad_batches = 1
-cfg.ml.grad_clip_val = 100
+cfg.ml.grad_clip_val = 500
 cfg.ml.check_val_every_n_epoch = 50
 cfg.ml.early_stopping_patience = 500
 cfg.ml.early_stopping_mode = "max"
