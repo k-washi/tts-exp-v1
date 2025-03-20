@@ -23,11 +23,13 @@ class CheckpointEveryEpoch(pl.Callback):
                 if hasattr(trainer.model, "module"):
                     torch.save(trainer.model.module.net_g.state_dict(), net_g_save_path)
                     torch.save(trainer.model.module.net_d.state_dict(), net_d_save_path)
-                    torch.save(trainer.model.module.wavlm_d.state_dict(), net_wavlm_d_save_path)
+                    if hasattr(trainer.model.module, "wavlm_d"):
+                        torch.save(trainer.model.module.wavlm_d.state_dict(), net_wavlm_d_save_path)
                 else:
                     torch.save(trainer.model.net_g.state_dict(), net_g_save_path)
                     torch.save(trainer.model.net_d.state_dict(), net_d_save_path)
-                    torch.save(trainer.model.wavlm_d.state_dict(), net_wavlm_d_save_path)
+                    if hasattr(trainer.model, "wavlm_d"):
+                        torch.save(trainer.model.wavlm_d.state_dict(), net_wavlm_d_save_path)
                 return None
 
 
