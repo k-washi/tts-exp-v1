@@ -51,7 +51,7 @@ RUN pyenv global 3.11.7
 RUN python --version
 RUN pyenv rehash
 RUN pip install --upgrade pip setuptools requests
-RUN pip install poetry==1.8.3
+RUN pip install poetry==2.1.1
 
 
 

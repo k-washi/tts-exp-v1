@@ -17,6 +17,16 @@ def kl_divergence_loss(z_p, logs_q, m_p, logs_p, z_mask):
     l = kl / torch.sum(z_mask)
     return l
 
+def kl_divergence_loss_torch(z_p, logs_q, m_p, logs_p, z_mask):
+    z_p = z_p.float()
+    logs_q = logs_q.float()
+    m_p = m_p.float()
+    logs_p = logs_p.float()
+    z_mask = z_mask.float()
+    norm1 = torch.distributions.Normal(z_p*z_mask, torch.exp(logs_p*z_mask))
+    norm2 = torch.distributions.Normal(m_p*z_mask, torch.exp(logs_q*z_mask))
+    kl = torch.distributions.kl_divergence(norm1, norm2)
+    return torch.sum(kl * z_mask) / torch.sum(z_mask)
 
 def mel_list_loss(melspectfs, sliced_wav_real, sliced_wav_fake):
     """Calculates the mel list loss

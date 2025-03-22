@@ -31,3 +31,6 @@ class MLConfig:
     checkpoint: SaveConfig = field(default_factory=lambda: SaveConfig())
     evaluator: EvalatorConfig = field(default_factory=lambda: EvalatorConfig())
     wav_save_every_n: int = 10
+    
+    # setting
+    

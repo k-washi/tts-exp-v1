@@ -21,6 +21,13 @@ class netG():
     use_noise_scaled_mas: bool = False
     mas_nosie_scale_initial: float = 0.01
     mas_noise_scale_delta: float = 2e-6
+    # efficienttts2の設定
+    hidden_channels:int = 192
+    prior_nn_layers1:int = 3
+    prior_nn_layers2:int = 8
+    vap_layers:int = 3
+    bidirectional:bool = True
+    attn_max_len:int = 2000
 
 @dataclass
 class netD():
@@ -66,6 +73,8 @@ class GAdvLossConfig():
 class DAdvLossConfig():
     average_by_discriminators: bool = False
     loss_type: str = "mse"
+    gamma_base: float = 2.0
+    gamma_final: float = 0.2
 
 @dataclass
 class WavLMAdvLossConfig():
@@ -93,7 +102,8 @@ class Loss():
     g_adv_loss: GAdvLossConfig = field(default_factory=lambda:GAdvLossConfig())
     d_adv_loss: DAdvLossConfig = field(default_factory=lambda:DAdvLossConfig())
     feat_match_loss: FeatureMatchLossConfig = field(default_factory=lambda:FeatureMatchLossConfig())
-    
+    # efficienttts2の設定
+    align_kl_loss_lambda: float = 5.0
 
 @dataclass()
 class ModelConfig:
