@@ -391,9 +391,11 @@ class HiFiGANMultiPeriodDiscriminator(torch.nn.Module):
         """
         outs = []
         input_list = []
+        if disc:
+            x = x.detach()
         for f in self.discriminators:
             if disc:
-                x = x.detach().requires_grad_(True)
+                x = x.requires_grad_(True)
             input_list.append(x)
             outs += [f(x)]
 
@@ -637,9 +639,11 @@ class HiFiGANMultiScaleDiscriminator(torch.nn.Module):
         """
         outs = []
         input_list = []
+        if disc:
+            x = x.detach()
         for f in self.discriminators:
             if disc:
-                x = x.detach().requires_grad_(True)
+                x = x.requires_grad_(True)
             input_list.append(x)
             outs += [f(x)]
             if self.pooling is not None:

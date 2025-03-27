@@ -37,7 +37,7 @@ def generator_adversarial_loss(
         loss /= (i + 1)
     else:
         relative_logits = fake_outputs - real_outputs.detach()
-        adv_loss = F.softplus(-relative_logits)
+        adv_loss = F.softplus(-relative_logits) / relative_logits.size(-1)
         loss = adv_loss
     return loss.mean()
 
@@ -56,12 +56,20 @@ def discriminator_adversarial_loss(
             if isinstance(real_outputs_, (tuple, list)):
                 real_outputs_ = real_outputs_[-1]
                 fake_outputs_ = fake_outputs_[-1]
+            if real_outputs_.dim() == 2:
+                real_outputs_ = real_outputs_.unsqueeze(1)
+            if fake_outputs_.dim() == 2:
+                fake_outputs_ = fake_outputs_.unsqueeze(1)
+            if real_samples_.dim() == 2:
+                real_samples_ = real_samples_.unsqueeze(1)
+            if fake_samples_.dim() == 2:
+                fake_samples_ = fake_samples_.unsqueeze(1)
             # real_samples_ = real_samples_.detach().requires_grad_(True)
             # fake_samples_ = fake_samples_.detach().requires_grad_(True)
             r1_penalty = zero_centerd_gradient_penality(real_samples_, real_outputs_)
             r2_penalty = zero_centerd_gradient_penality(fake_samples_, fake_outputs_)
             relative_logits = real_outputs_ - fake_outputs_
-            adv_loss = F.softplus(-relative_logits).sum(dim=-1)
+            adv_loss = F.softplus(-relative_logits).sum(dim=-1) / relative_logits.size(-1)
             loss += adv_loss + (gamma / 2) * (r1_penalty + r2_penalty)
         loss /= (i + 1)
     else:
@@ -70,9 +78,9 @@ def discriminator_adversarial_loss(
         r1_penalty = zero_centerd_gradient_penality(real_samples, real_outputs)
         r2_penalty = zero_centerd_gradient_penality(fake_samples, fake_outputs)
         relative_logits = real_outputs - fake_outputs
-        adv_loss = F.softplus(-relative_logits).sum(dim=-1)
+        adv_loss = F.softplus(-relative_logits).sum(dim=-1) / relative_logits.size(-1)
         loss = adv_loss + (gamma / 2) * (r1_penalty + r2_penalty)
-
+    print(loss.mean())
     return loss.mean()
 
 class WavLMDiscriminator(nn.Module):
@@ -211,7 +219,7 @@ class WavLMLoss(torch.nn.Module):
         r2_penalty = zero_centerd_gradient_penality(y_rec_embeddings, y_d_gs)
 
         relative_logits = y_d_rs - y_d_gs
-        adv_loss = F.softplus(-relative_logits).sum(dim=-1)
+        adv_loss = F.softplus(-relative_logits).sum(dim=-1) / relative_logits.size(-1)
         
         adv_loss = adv_loss + (gamma / 2) * (r1_penalty + r2_penalty)
         return adv_loss.mean()

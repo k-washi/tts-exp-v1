@@ -16,10 +16,12 @@ from src.tts.utils.audio import (
 from src.config.config import Config
 
 from src.models.msistftef2.generator_cn import Generator
-from src.models.msistftef2.modules.hifigan import HiFiGANMultiScaleMultiPeriodDiscriminator
+from src.models.core.discriminator.hifigan import HiFiGANMultiScaleMultiPeriodDiscriminator
 from src.models.msistftef2.modules.disc_loss import WavLMDiscriminator, WavLMLoss, generator_adversarial_loss, discriminator_adversarial_loss
 from src.models.msistftef2.modules.utils import cosine_scheduler
 from src.models.vits.loss import (
+    GeneratorAdversarialLoss,
+    DiscriminatorAdversarialLoss,
     FeatureMatchLoss,
     SISNRLoss,
     kl_divergence_loss_torch
@@ -55,7 +57,14 @@ class MsISTFTEF2Module(LightningModule):
         
         #loss
         loss_cfg = cfg.model.loss
-        
+        self.g_adv_loss = GeneratorAdversarialLoss(
+            average_by_discriminators=loss_cfg.g_adv_loss.average_by_discriminators,
+            loss_type=loss_cfg.g_adv_loss.loss_type
+        )
+        self.d_adv_loss = DiscriminatorAdversarialLoss(
+            average_by_discriminators=loss_cfg.d_adv_loss.average_by_discriminators,
+            loss_type=loss_cfg.d_adv_loss.loss_type
+        )
         self.d_wav_lm_loss = WavLMLoss(
             model=cfg.model.wavlm_d.model,
             wd=self.wavlm_d,
@@ -84,11 +93,6 @@ class MsISTFTEF2Module(LightningModule):
         self.val_output_dir = None
         self.val_resampler = torchaudio.transforms.Resample(cfg.dataset.sample_rate, cfg.ml.evaluator.sr)
         
-        self.gamma_value_list = cosine_scheduler(
-            loss_cfg.d_adv_loss.gamma_base,
-            loss_cfg.d_adv_loss.gamma_final,
-            cfg.ml.num_epochs,
-        )
     
     def load_model_from_ckpt(
         self, net_g_path: str, net_d_path: str
@@ -110,7 +114,6 @@ class MsISTFTEF2Module(LightningModule):
             self.d_wav_lm_loss.eval()
             optimizer_d.eval()
             optimizer_g.eval()
-        gamma_value = self.gamma_value_list[self.current_epoch]
         self.d_wav_lm_loss.wavlm.eval()
         (
             wav_padded,
@@ -188,9 +191,8 @@ class MsISTFTEF2Module(LightningModule):
         if (batch_idx + 1) % self.cfg.model.net_d.n_D_update_steps == 0:
             if step == "train":
                 self.toggle_optimizer(optimizer_d)
-            p_real, p_real_samples = self.net_d(wav_real, disc=True)
-            p_fake, p_fake_samples = self.net_d(wav_fake.detach(), disc=True)
-            
+            p_real = self.net_d(wav_real)
+            p_fake = self.net_d(wav_fake.detach())
             # dur discriminator
             # y_dur_hat_r, y_hat_dur_g = self.net_dur_d(
             #     text_encoded.detach(),
@@ -206,15 +208,14 @@ class MsISTFTEF2Module(LightningModule):
             adversarial_loss_slm_D = 0 if step != "train" else self.d_wav_lm_loss.discriminator(
                 wav_real.detach().squeeze(),
                 wav_fake.detach().squeeze(),
-                gamma=gamma_value
             ).mean()
             adversarial_loss_slm_D = (
                 adversarial_loss_slm_D * self.cfg.model.loss.adversarial_loss_D_lambda
             )
 
             # lossを計算
-            adversarial_loss_D = 0 if step != "train" else (
-                discriminator_adversarial_loss(p_real, p_real_samples, p_fake, p_fake_samples, gamma=gamma_value)
+            adversarial_loss_D = (
+                self.d_adv_loss(p_fake, p_real)
                 * self.cfg.model.loss.adversarial_loss_D_lambda
             )
             
@@ -255,8 +256,8 @@ class MsISTFTEF2Module(LightningModule):
         
         # discriminatorの学習でnet_gは更新されていない(そのままの結果を使用)
         # Generatorノ更新
-        p_real, _ = self.net_d(wav_real)
-        p_fake, _ = self.net_d(wav_fake)
+        p_real = self.net_d(wav_real)
+        p_fake = self.net_d(wav_fake)
 
         
         # ef2 loss
@@ -289,7 +290,7 @@ class MsISTFTEF2Module(LightningModule):
             * self.cfg.model.loss.feature_loss_loss_lambda
         )
         adversarial_loss_G = (
-            generator_adversarial_loss(p_real, p_fake)
+            self.g_adv_loss(p_fake)
             * self.cfg.model.loss.adversarial_loss_G_lambda
         )
         

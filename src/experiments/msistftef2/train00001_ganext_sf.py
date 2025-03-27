@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 from dataclasses import asdict
 
-from src.models.msistftef2.plmodule_cn_r2gan import MsISTFTEF2Module
+from src.models.msistftef2.plmodule_cn_r2gan_sf import MsISTFTEF2Module
 from src.dataset.pt.plmodule import TTSDataModule
 from src.experiments.utils.pl_callbacks import CheckpointEveryEpoch
 
@@ -28,8 +28,8 @@ seed_everything(cfg.ml.seed)
 # PARAMS #
 ##########
 
-VERSION = "00507_ge"
-EXP_ID = "msistft_ef2_r3gan_accent_mblank"
+VERSION = "00506_ge"
+EXP_ID = "msistft_ef2_r3gan_sf_accent_mblank"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 IS_LOGGING = True
 FAST_DEV_RUN = False
