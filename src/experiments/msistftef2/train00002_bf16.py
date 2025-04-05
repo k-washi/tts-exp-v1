@@ -2,6 +2,7 @@
 入力形式: 音素, アクセント記号分割
 MS-ISTFTを使った音声生成
 ConvNextを使用して高速化
+bf16で学習
 """
 
 import torch
@@ -23,13 +24,12 @@ from src.config.config import Config, get_config
 cfg:Config = get_config()
 
 seed_everything(cfg.ml.seed)
-
 ##########
 # PARAMS #
 ##########
 
-VERSION = "00508"
-EXP_ID = "msistft_ef2_accent_mblank"
+VERSION = "00509"
+EXP_ID = "msistft_ef2_accent_mblank_bf16"
 WANDB_PROJECT_NAME = "vits-exp-v1"
 IS_LOGGING = True
 FAST_DEV_RUN = False
@@ -39,7 +39,7 @@ FAST_DEV_RUN = False
 
 cfg.ml.num_epochs = 10000
 cfg.ml.max_steps = 1000000
-cfg.ml.batch_size = 24
+cfg.ml.batch_size = 32
 cfg.ml.val_batch_size = 24
 cfg.ml.num_workers = 8
 cfg.ml.accumulate_grad_batches = 1
@@ -48,7 +48,7 @@ cfg.ml.check_val_every_n_epoch = 10
 cfg.ml.early_stopping_patience = 500
 cfg.ml.early_stopping_mode = "max"
 cfg.ml.early_stopping_monitor = "val/speech_bert_score_f1"
-cfg.ml.mix_precision = 32 # 16 or 32, bf16
+cfg.ml.mix_precision = "bf16" # 16 or 32, bf16
 cfg.ml.wav_save_every_n = 20 # 500個のテスト音声に対して1/10の50個を保存
 cfg.ml.evaluator.speech_bert_score_model = "japanese-hubert-base" # 評価に用いるSSLモデル
 

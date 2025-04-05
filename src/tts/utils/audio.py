@@ -165,9 +165,9 @@ def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False)
         (int((n_fft - hop_size) / 2), int((n_fft - hop_size) / 2)),
         mode="reflect",
     )
-
+    
     spec = torchaudio.functional.spectrogram(
-        waveform=y,
+        waveform=y.to(dtype=torch.float32),
         pad=0,
         window=hann_windows[wnsize_dtype_device],
         n_fft=n_fft,
@@ -177,6 +177,7 @@ def spectrogram_torch(y, n_fft, sampling_rate, hop_size, win_size, center=False)
         normalized=False,
         center=False
     )
+    spec = spec.to(y.dtype)
     
     # Linear-frequency Linear-amplitude spectrogram :: (B, Freq, Frame, RealComplex=2) -> (B, Freq, Frame)
     spec = torch.sqrt(spec + 1e-6)

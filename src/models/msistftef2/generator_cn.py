@@ -153,7 +153,7 @@ class Generator(nn.Module):
         # prior
         z1_r, m_q1, logs_q1, spec_mask = self.prior_nn1(x_align, spec_mask, g=speaker_emb)
         _, m_q2, logs_q2, spec_mask = self.prior_nn2(z1, spec_mask, g=speaker_emb)
-        
+
         e_a = e - a # (B, TT)
         b_a = b - a # (B, TT)
         loss_a, loss_a_kl = self.vap(text_encoded, text_mask, e_a, b_a, g=speaker_emb)
