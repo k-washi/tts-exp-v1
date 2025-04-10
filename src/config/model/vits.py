@@ -28,6 +28,7 @@ class netG():
     vap_layers:int = 3
     bidirectional:bool = True
     attn_max_len:int = 2000
+    prune_amount:float = 0
 
 @dataclass
 class netD():
