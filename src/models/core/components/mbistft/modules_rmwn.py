@@ -7,7 +7,6 @@ from torch.nn.utils import weight_norm, remove_weight_norm
 
 from src.models.core.components.flytts.stft import OnnxSTFT
 from src.models.core.components.flytts.decode import get_padding
-from src.models.core.components.utils.ops import init_weights, LoRALinear1d
 import math
 
 LRELU_SLOPE = 0.1
@@ -73,50 +72,48 @@ class ConvNextBlock(nn.Module):
             x = x * x_maxk
         return x
 
-class ResBlock1(torch.nn.Module):
-    def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
-        super(ResBlock1, self).__init__()
-        self.convs1 = nn.ModuleList([
-            weight_norm(nn.Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(nn.Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(nn.Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
-        ])
-        self.convs1.apply(init_weights)
+class Conv1dGNorm(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True):
+        super(Conv1dGNorm, self).__init__()
+        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias)
+        self.norm = nn.GroupNorm(1, out_channels)
+        self.act = nn.GELU()
 
-        self.convs2 = nn.ModuleList([
-            weight_norm(nn.Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(nn.Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(nn.Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
-        ])
-        self.convs2.apply(init_weights)
-
-    def forward(self, x, x_mask=None):
-        for c1, c2 in zip(self.convs1, self.convs2):
-            xt = F.leaky_relu(x, LRELU_SLOPE)
-            if x_mask is not None:
-                xt = xt * x_mask
-            xt = c1(xt)
-            xt = F.leaky_relu(xt, LRELU_SLOPE)
-            if x_mask is not None:
-                xt = xt * x_mask
-            xt = c2(xt)
-            x = xt + x
-        if x_mask is not None:
-            x = x * x_mask
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.norm(x)
+        x = self.act(x)
         return x
 
-    def remove_weight_norm(self):
-        for l in self.convs1:
-            remove_weight_norm(l)
-        for l in self.convs2:
-            remove_weight_norm(l)
+class Conv1dTransposeGNorm(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True):
+        super(Conv1dTransposeGNorm, self).__init__()
+        self.conv = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias)
+        self.norm = nn.GroupNorm(1, out_channels)
+        self.act = nn.GELU()
 
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.norm(x)
+        x = self.act(x)
+        return x
+    
+
+class LoRALinear1d(nn.Module):
+    def __init__(self, in_channels, out_channels, info_channels, r):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.info_channels = info_channels
+        self.r = r
+        self.main_fc = Conv1dGNorm(in_channels, out_channels, 1)
+        self.adapter_in = Conv1dGNorm(info_channels, in_channels * r, 1)
+        self.adapter_out = Conv1dGNorm(info_channels, out_channels * r, 1)
+    def forward(self, x, g):
+        a_in = self.adapter_in(g).view(-1, self.in_channels, self.r)
+        a_out = self.adapter_out(g).view(-1, self.r, self.out_channels)
+        x = self.main_fc(x) + torch.einsum("brl,brc->bcl", torch.einsum("bcl,bcr->brl", x, a_in), a_out)
+        return x
 
 class Multistream_iSTFT_Generator(torch.nn.Module):
     def __init__(
@@ -139,37 +136,32 @@ class Multistream_iSTFT_Generator(torch.nn.Module):
         self.subbands = subbands
         self.num_kernels = len(block_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
-        self.conv_pre = weight_norm(nn.Conv1d(initial_channel, upsample_initial_channel, 7, 1, padding=3))
-        if block_type == "resblock":
-            block_module = ResBlock1
-        elif block_type == "convnext":
+        self.conv_pre = Conv1dGNorm(initial_channel, upsample_initial_channel, 7, 1, padding=3)
+
+        if block_type == "convnext":
             block_module = ConvNextBlock
         else:
             raise ValueError("block_type should be resblock")
         self.ups = nn.ModuleList()
         for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
             # upsample rate is controlled by stride
-            self.ups.append(weight_norm(
-                nn.ConvTranspose1d(upsample_initial_channel//(2**i), upsample_initial_channel//(2**(i+1)),
-                                k, u, padding=(k-u)//2)))
+            self.ups.append(Conv1dTransposeGNorm(upsample_initial_channel//(2**i), upsample_initial_channel//(2**(i+1)),
+                                k, u, padding=(k-u)//2))
 
         self.blocks = nn.ModuleList()
         for i in range(len(self.ups)):
             ch = upsample_initial_channel//(2**(i+1))
             for j, (k, d) in enumerate(zip(block_kernel_sizes, block_dilation_sizes)):
-                if block_type == "resblock":
-                    self.blocks.append(block_module(ch, k, d))
-                elif block_type == "convnext":
+                if block_type == "convnext":
                     self.blocks.append(block_module(ch, k, d, hidden_dim_rate=convnext_hidden_dim_rate))
-
+                else:
+                    raise ValueError("block_type should be resblock")
         self.post_n_fft = gen_istft_n_fft
-        self.ups.apply(init_weights)
         self.reflection_pad = nn.ReflectionPad1d((1, 0))
         self.reshape_pixelshuffle = []
 
-        self.subband_conv_post = weight_norm(nn.Conv1d(ch, self.subbands*(self.post_n_fft + 2), 7, 1, padding=3))
+        self.subband_conv_post = Conv1dGNorm(ch, self.subbands*(self.post_n_fft + 2), 7, 1, padding=3)
         
-        self.subband_conv_post.apply(init_weights)
         
         self.gen_istft_n_fft = gen_istft_n_fft
         self.gen_istft_hop_size = gen_istft_hop_size
@@ -178,8 +170,7 @@ class Multistream_iSTFT_Generator(torch.nn.Module):
         for k in range(self.subbands):
             updown_filter[k, k, 0] = 1.0
         self.register_buffer("updown_filter", updown_filter)
-        self.multistream_conv_post = weight_norm(nn.Conv1d(4, 1, kernel_size=63, bias=False, padding=get_padding(63, 1)))
-        self.multistream_conv_post.apply(init_weights)
+        self.multistream_conv_post = Conv1dGNorm(4, 1, kernel_size=63, bias=False, padding=get_padding(63, 1))
         
         self.stft = OnnxSTFT(
             filter_length=self.gen_istft_n_fft,
@@ -250,8 +241,6 @@ class Multistream_iSTFT_Generator(torch.nn.Module):
         remove_weight_norm(self.conv_pre)
         remove_weight_norm(self.subband_conv_post)
         remove_weight_norm(self.multistream_conv_post)
-
-
 if __name__ == "__main__":
     z_channel, gin_channel = 192, 192
     batch_size = 1

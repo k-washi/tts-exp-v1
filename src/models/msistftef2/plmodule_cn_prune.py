@@ -103,11 +103,14 @@ class MsISTFTEF2Module(LightningModule):
                 prune_modules.append(module)
         return prune_modules
     
-    def _apply_pruning(self):
+    def _apply_pruning(self, amount:float|None=None):
+        if amount is None:
+            amount = self.cfg.model.net_g.prune_amount
+        
         prune_modules = self.__get_prune_modules()
         for module in prune_modules:
-            prune.l1_unstructured(module, name="weight", amount=self.cfg.model.net_g.prune_amount)
-    
+            prune.ln_structured(module, name="weight", amount=amount, n=2, dim=0)
+
     def _remove_pruning(self):
         prune_modules = self.__get_prune_modules()
         for module in prune_modules:

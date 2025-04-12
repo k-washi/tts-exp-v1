@@ -43,7 +43,7 @@ class VarationalAlignmentPredictor(nn.Module):
             print("loss_kl is nan")
             loss_kl = torch.zeros_like(loss_kl)
         return loss_dur, loss_kl
-
+    
     def infer(self, x, x_mask, t_a=1.0, g=None):
         if g is not None:
             x = x + self.conv_g(g)
