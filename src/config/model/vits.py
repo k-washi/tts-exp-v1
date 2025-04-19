@@ -21,6 +21,7 @@ class netG():
     use_noise_scaled_mas: bool = False
     mas_nosie_scale_initial: float = 0.01
     mas_noise_scale_delta: float = 2e-6
+    decoder_upsample_initial_channel:int = 512
     # efficienttts2の設定
     hidden_channels:int = 192
     prior_nn_layers1:int = 3
