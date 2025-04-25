@@ -13,8 +13,6 @@ from src.dataset.pt.sampler import (
     collate_fn,
 )
 
-from src.models.msistftef2.plmodule_cn_light import MsISTFTEF2Module
-
 from src.utils.logger import get_logger
 logger = get_logger(debug=True)
 
@@ -35,10 +33,10 @@ cfg.model.net_g.prior_nn_layers2 = 5
 cfg.model.net_g.vap_layers = 2
 cfg.model.net_g.phoneme_embedding_dim = cfg.model.net_g.hidden_channels
 cfg.model.net_g.speaker_id_embedding_dim = cfg.model.net_g.hidden_channels
-cfg.model.net_g.decoder_upsample_initial_channel = 256
+cfg.model.net_g.decoder_upsample_initial_channel = 384
 SR = 22050
 m_dtype = torch.float32
-G_MODEL = "logs/msistft_ef2_accent_mblank_bf16_light_00511/ckpt/ckpt-2990/net_g.pth"
+G_MODEL = "logs/msistft_ef2_accent_mblank_bf16_light_00512/ckpt/ckpt-2240/net_g.pth"
 
 valid_fp = "data/jsut/val.txt"
 with open(valid_fp, 'r', encoding='utf-8') as f:
@@ -58,53 +56,53 @@ val_dataloader = torch.utils.data.DataLoader(
                 shuffle=False,
                 drop_last=False
             )
-
-model = MsISTFTEF2Module(cfg=cfg)
-model.net_g.load_state_dict(torch.load(G_MODEL, map_location="cpu"))
-
+from src.models.msistftef2.generator_cn_light_inference import Generator
+model = Generator(cfg=cfg.model.net_g, data_cfg=cfg.dataset)
+model.load_state_dict(torch.load(G_MODEL, map_location="cpu"), strict=False)
+for p in model.parameters():
+    p.requires_grad = False
+# model = torch.compile(model)
 
 # CPU inference
 device = torch.device("cpu")
-model.net_g.to(device, dtype=m_dtype)
-model.net_g.eval()
+model.to(device, dtype=m_dtype)
+model.eval()
 
 # real time factor = 1秒の音声を処理するのにかかる時間
 cpu_created_time = 0
 cpu_inference_time = 0
 for i, batch in tqdm(enumerate(val_dataloader)):
-    with torch.no_grad():
-        with torch.autocast(device_type=device.type, dtype=m_dtype):
-            # batch = {k: v.to(device, dtype=m_dtype) for k, v in batch.items()}
-            # batch = {k: v.to(device) for k, v in batch.items()}
-            # print(batch)
-            (
-                real_wave_padded,
-                wav_lengths,
-                _,
-                _,
+    with torch.inference_mode() and torch.autocast(device_type='cpu', dtype=torch.float32):
+        # batch = {k: v.to(device, dtype=m_dtype) for k, v in batch.items()}
+        # batch = {k: v.to(device) for k, v in batch.items()}
+        # print(batch)
+        (
+            real_wave_padded,
+            wav_lengths,
+            _,
+            _,
+            text_padded,
+            text_lengths,
+            accent_pos_padded,
+            speaker_id,
+        ) = batch
+        
+        s = time.time()
+        fake_wave = model(
                 text_padded,
                 text_lengths,
                 accent_pos_padded,
-                speaker_id,
-            ) = batch
-            
-            torch.cuda.synchronize()
-            s = time.time()
-            fake_wave, _, _ = model.net_g.text_to_speech(
-                    text_padded,
-                    text_lengths,
-                    accent_pos_padded,
-                    speaker_id
-                )
-            if i < 50:
-                continue
-            torch.cuda.synchronize()
-            elapsed = time.time() - s
-            # 22050Hzの出力
-            ct = fake_wave.shape[-1] / SR
-            cpu_created_time += ct
-            cpu_inference_time += elapsed
-            logger.info(f"RTF: {cpu_inference_time/cpu_created_time:.4f}")
+                speaker_id
+            )
+        elapsed = time.time() - s
+        if i < 50:
+            continue
+        
+        # 22050Hzの出力
+        ct = fake_wave.shape[-1] / SR
+        cpu_created_time += ct
+        cpu_inference_time += elapsed
+        # logger.info(f"RTF: {cpu_inference_time/cpu_created_time:.4f}")
 
 logger.info(f"CPU inference time: {cpu_inference_time:.4f} sec")
 logger.info(f"CPU created time: {cpu_created_time:.4f} sec")
@@ -123,8 +121,8 @@ val_dataloader = torch.utils.data.DataLoader(
 
 # CPU inference
 device = torch.device("cuda")
-model.net_g.to(device, dtype=m_dtype)
-model.net_g.eval()
+model.to(device, dtype=m_dtype)
+model.eval()
 
 # real time factor = 1秒の音声を処理するのにかかる時間
 gpu_created_time = 0
@@ -133,52 +131,52 @@ gpu_tf_time = 0
 count = 0
 for i, batch in tqdm(enumerate(val_dataloader)):
     with torch.no_grad():
-        with torch.autocast(device_type=device.type, dtype=m_dtype):
-            # batch = {k: v.to(device, dtype=m_dtype) for k, v in batch.items()}
-            # batch = {k: v.to(device) for k, v in batch.items()}
-            # print(batch)
-            
-            (
-                real_wave_padded,
-                wav_lengths,
-                _,
-                _,
+    
+        # batch = {k: v.to(device, dtype=m_dtype) for k, v in batch.items()}
+        # batch = {k: v.to(device) for k, v in batch.items()}
+        # print(batch)
+        
+        (
+            real_wave_padded,
+            wav_lengths,
+            _,
+            _,
+            text_padded,
+            text_lengths,
+            accent_pos_padded,
+            speaker_id,
+        ) = batch
+        
+        torch.cuda.synchronize()
+        s = time.time()
+        text_padded = text_padded.to(device)
+        text_lengths = text_lengths.to(device)
+        accent_pos_padded = accent_pos_padded.to(device)
+        speaker_id = speaker_id.to(device)
+        
+        torch.cuda.synchronize()
+        elapsed = time.time() - s
+        gpu_tf_time += elapsed
+        count += 1
+        
+        torch.cuda.synchronize()
+        s = time.time()
+        fake_wave = model(
                 text_padded,
                 text_lengths,
                 accent_pos_padded,
-                speaker_id,
-            ) = batch
-            
-            torch.cuda.synchronize()
-            s = time.time()
-            text_padded = text_padded.to(device)
-            text_lengths = text_lengths.to(device)
-            accent_pos_padded = accent_pos_padded.to(device)
-            speaker_id = speaker_id.to(device)
-            
-            torch.cuda.synchronize()
-            elapsed = time.time() - s
-            gpu_tf_time += elapsed
-            count += 1
-            
-            torch.cuda.synchronize()
-            s = time.time()
-            fake_wave, _, _= model.net_g.text_to_speech(
-                    text_padded,
-                    text_lengths,
-                    accent_pos_padded,
-                    speaker_id
-                )
-            if i < 50:
-                continue
-            torch.cuda.synchronize()
-            elapsed = time.time() - s
-            # 22050Hzの出力
-            ct = fake_wave.shape[-1] / SR
-            gpu_created_time += ct
-            gpu_inference_time += elapsed
-            logger.info(f"GPU TF: {gpu_tf_time/count:.4f}")
-            logger.info(f"RTF: {gpu_inference_time/gpu_created_time:.4f}")
+                speaker_id
+            )
+        if i < 50:
+            continue
+        torch.cuda.synchronize()
+        elapsed = time.time() - s
+        # 22050Hzの出力
+        ct = fake_wave.shape[-1] / SR
+        gpu_created_time += ct
+        gpu_inference_time += elapsed
+        #logger.info(f"GPU TF: {gpu_tf_time/count:.4f}")
+        #logger.info(f"RTF: {gpu_inference_time/gpu_created_time:.4f}")
 
 print(f"GPU inference time: {gpu_inference_time:.8f} sec")
 print(f"GPU created time: {gpu_created_time:.8f} sec")
@@ -191,10 +189,10 @@ print(f"CPU created time: {cpu_created_time:.8f} sec")
 print(f"CPU RTF: {cpu_inference_time/cpu_created_time:.8f}")
 
 param_num = sum(p.numel() for p in [
-    *model.net_g.text_encoder.parameters(),
-    *model.net_g.decoder.parameters(),
-    *model.net_g.vap.parameters(),
-    *model.net_g.prior_nn1.parameters(),
-    *model.net_g.prior_nn2.parameters(),
+    *model.text_encoder.parameters(),
+    *model.decoder.parameters(),
+    *model.vap.parameters(),
+    *model.prior_nn1.parameters(),
+    *model.prior_nn2.parameters(),
 ])
 print(f"Param Num: {param_num / 1e6:.2f}M")
